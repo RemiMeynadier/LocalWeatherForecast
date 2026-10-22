@@ -107,7 +107,7 @@ describe('synoptic analysis', () => {
 
   it('derives the surface flow direction and upper trough', () => {
     const s = analyseStep(grid, 0, 3)
-    expect(s.surfaceFlow?.from).toBe('easterly')
+    expect(s.surfaceFlow?.from).toBe(2) // east
     expect(s.upper).toBe('trough')
   })
 
@@ -132,16 +132,16 @@ describe('extremes', () => {
   it('merges consecutive windy days into one episode and keeps the peak', () => {
     const days = [day('2026-10-22', 0, { gust: 80 }), day('2026-10-23', 1, { gust: 110 }), day('2026-10-24', 2), day('2026-10-25', 3, { gust: 75 })]
     const alerts = detectExtremes(days)
-    expect(alerts.map((a) => [a.title, a.level, a.start, a.end])).toEqual([
-      ['Strong winds', 'warning', '2026-10-22', '2026-10-23'],
-      ['Strong winds', 'watch', '2026-10-25', '2026-10-25'],
+    expect(alerts.map((a) => [a.kind, a.level, a.start, a.end])).toEqual([
+      ['xWind', 'warning', '2026-10-22', '2026-10-23'],
+      ['xWind', 'watch', '2026-10-25', '2026-10-25'],
     ])
     expect(alerts[0].peak).toBe(110)
   })
 
   it('flags heavy rain against the local percentile and unusual warmth', () => {
     const alerts = detectExtremes([day('2026-10-22', 0, { precip: 30, tmax: 26 })])
-    expect(alerts.map((a) => a.title).sort()).toEqual(['Heavy rain', 'Unusual warmth'])
+    expect(alerts.map((a) => a.kind).sort()).toEqual(['xRain', 'xWarmth'])
   })
 
   it('cross-checks official warnings by hazard and date', () => {

@@ -29,10 +29,12 @@ function compact(alert, now) {
   const level = Number.parseInt(param(info, 'awareness_level'), 10)
   if (!LEVELS[level]) return null
   if (info.expires && Date.parse(info.expires) < now) return null
+  const fr = alert.info?.find((i) => i.language?.startsWith('fr'))
   return {
     level: LEVELS[level],
     type: Number.parseInt(param(info, 'awareness_type'), 10) || null,
     event: info.event,
+    eventFr: fr?.event,
     headline: info.headline,
     description: (info.description ?? '').slice(0, 600),
     sender: info.senderName,

@@ -4,6 +4,8 @@ import type { FeatureCollection, MultiLineString } from 'geojson'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { feature, mesh } from 'topojson-client'
 import type { SynopticGrid } from '../api/openMeteo'
+import { t as tr } from '../i18n'
+import { utcTime } from '../lib/format'
 import type { SynopticStep } from '../lib/synoptic'
 
 interface Props {
@@ -70,8 +72,6 @@ function useWidth() {
   }, [])
   return { ref, width }
 }
-
-const timeFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
 
 function zFill(t: number): string {
   const d = Math.max(-1, Math.min(1, (t - Z_MID) / 360))
@@ -146,7 +146,7 @@ export function SynopticMap({ grid, steps, lat, lon, step }: Props) {
 
   return (
     <div className="synoptic-map" ref={ref}>
-      <svg width={width} height={height} role="img" aria-label={`Synoptic chart for ${timeFmt.format(new Date(`${grid.times[t]}Z`))} UTC`}>
+      <svg width={width} height={height} role="img" aria-label={tr('mapAria', { t: utcTime(grid.times[t]) })}>
         <defs>
           <clipPath id="syn-clip">
             <rect x={cx0} y={cy0} width={cx1 - cx0} height={cy1 - cy0} />
@@ -199,8 +199,8 @@ export function SynopticMap({ grid, steps, lat, lon, step }: Props) {
       <div className="syn-controls">
         <label>
           <span>
-            <strong>{timeFmt.format(new Date(`${grid.times[t]}Z`))} UTC</strong>
-            {t === nowIndex ? ' · now' : ` · +${(t - nowIndex) * 6} h`}
+            <strong>{utcTime(grid.times[t])} UTC</strong>
+            {t === nowIndex ? ` · ${tr('now')}` : ` · ${t > nowIndex ? '+' : '−'}${Math.abs(t - nowIndex) * 6} h`}
           </span>
           <input
             type="range"
@@ -208,14 +208,14 @@ export function SynopticMap({ grid, steps, lat, lon, step }: Props) {
             max={grid.times.length - 1}
             value={t}
             onChange={(e) => setT(Number(e.target.value))}
-            aria-label="Forecast time"
+            aria-label={tr('mapTime')}
           />
         </label>
         <ul className="legend">
-          <li><i className="key key-isobar" />Sea-level pressure, every {ISOBAR_STEP} hPa</li>
-          <li><i className="key key-z-low" />Low 500 hPa heights (trough, colder air aloft)</li>
-          <li><i className="key key-z-high" />High 500 hPa heights (ridge, warmer air aloft)</li>
-          <li><i className="key key-here" />Your location</li>
+          <li><i className="key key-isobar" />{tr('mapPressure')}</li>
+          <li><i className="key key-z-low" />{tr('mapLow')}</li>
+          <li><i className="key key-z-high" />{tr('mapHigh')}</li>
+          <li><i className="key key-here" />{tr('mapYou')}</li>
         </ul>
       </div>
     </div>

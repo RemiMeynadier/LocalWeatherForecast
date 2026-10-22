@@ -1226,3 +1226,32 @@ main > section.has-watch {
     grid-template-columns: 6.5rem 1fr 5.5rem;
   }
 }
+
+/* Language toggle */
+
+button.lang {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+button.lang span {
+  padding: 4px 8px;
+  border-radius: 7px;
+  color: var(--muted);
+}
+
+button.lang span.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.method summary {
+  font-size: 1.15rem;
+}
+
+.method details[open] summary {
+  margin-bottom: 10px;
+}

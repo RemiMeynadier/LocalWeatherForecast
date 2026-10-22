@@ -4,7 +4,7 @@ Local weather forecasts **up to 5 weeks ahead**. The app blends the best physics
 your location, re-weights them according to how well they did over the past week, and checks potential extremes
 against official warnings.
 
-👉 **Live: https://remimeynadier.github.io/LocalWeatherForecast/**
+👉 **Live: https://remimeynadier.github.io/LocalWeatherForecast/** (English / français: toggle in the header, or `?lang=en` / `?lang=fr` in the URL)
 
 ## What it does
 
@@ -53,6 +53,7 @@ Every push to `main` is tested and deployed to GitHub Pages (`.github/workflows/
 
 ```
 src/
+  i18n.ts                 English / French strings, language detection and toggle
   api/openMeteo.ts        forecasts, ensembles, normals, synoptic grid, past runs
   api/observations.ts     reverse geocoding, nearest METAR station, observations
   api/warnings.ts         MeteoAlarm / NWS warnings, hazard mapping, area matching

@@ -57,7 +57,7 @@ async function loadBacktest(place: Place, region: Region): Promise<BacktestState
   return { status: 'ok', station, result: computeBacktest(runs, obs) }
 }
 
-export function useForecast(place: Place) {
+export function useForecast(place: Place, lang: string) {
   const key = `${place.lat},${place.lon}`
 
   const raw = useAsync(key, () => loadForecasts(place))
@@ -78,7 +78,9 @@ export function useForecast(place: Place) {
   const weeks = useMemo(() => (raw.value ? buildWeeklyOutlook(raw.value.ens, climate.value) : []), [raw.value, climate.value])
   const briefing = useMemo(
     () => (grid.value ? synopticBriefing(grid.value, place.lat, place.lon, GRID_STEP) : null),
-    [grid.value, place.lat, place.lon],
+    // The briefing text is generated in the current language.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [grid.value, place.lat, place.lon, lang],
   )
   const alerts = useMemo(
     () => (days.length ? crossCheck(detectExtremes(days), warnings.value?.warnings ?? []) : null),

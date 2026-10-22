@@ -47,7 +47,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'ecmwf_aifs025_single',
     label: 'ECMWF AIFS',
-    provider: 'ECMWF (AI)',
+    provider: 'ECMWF',
     days: 15,
     baseWeight: 0.95,
     ai: true,
@@ -55,7 +55,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'ncep_aigfs025',
     label: 'NOAA AIGFS',
-    provider: 'NOAA (AI)',
+    provider: 'NOAA',
     days: 16,
     baseWeight: 0.75,
     ai: true,
@@ -63,7 +63,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'icon_seamless',
     label: 'ICON',
-    provider: 'DWD (Germany)',
+    provider: 'DWD',
     days: 7,
     baseWeight: 0.8,
     highRes: { name: 'ICON-D2 2 km', bbox: { latMin: 44.5, latMax: 56.5, lonMin: 0, lonMax: 18 } },
@@ -71,7 +71,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'ukmo_seamless',
     label: 'UKMO',
-    provider: 'Met Office (UK)',
+    provider: 'Met Office',
     days: 7,
     baseWeight: 0.85,
     highRes: { name: 'UKV 2 km', bbox: { latMin: 49, latMax: 61, lonMin: -11, lonMax: 3 } },
@@ -79,7 +79,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'gfs_seamless',
     label: 'GFS',
-    provider: 'NOAA (USA)',
+    provider: 'NOAA',
     days: 16,
     baseWeight: 0.7,
     highRes: { name: 'HRRR 3 km', bbox: { latMin: 21, latMax: 53, lonMin: -134, lonMax: -60 } },
@@ -87,7 +87,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'gem_seamless',
     label: 'GEM',
-    provider: 'ECCC (Canada)',
+    provider: 'ECCC',
     days: 10,
     baseWeight: 0.6,
     highRes: { name: 'HRDPS 2.5 km', bbox: { latMin: 27, latMax: 70, lonMin: -152, lonMax: -40 } },
@@ -95,7 +95,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'jma_seamless',
     label: 'JMA',
-    provider: 'JMA (Japan)',
+    provider: 'JMA',
     days: 11,
     baseWeight: 0.6,
     highRes: { name: 'MSM 5 km', bbox: { latMin: 22.4, latMax: 47.6, lonMin: 120, lonMax: 150 } },
@@ -112,7 +112,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'knmi_seamless',
     label: 'HARMONIE (KNMI)',
-    provider: 'KNMI (Netherlands)',
+    provider: 'KNMI',
     days: 3,
     baseWeight: 0.7,
     domain: { latMin: 49, latMax: 56, lonMin: 0, lonMax: 11 },
@@ -121,7 +121,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'dmi_seamless',
     label: 'HARMONIE (DMI)',
-    provider: 'DMI (Denmark)',
+    provider: 'DMI',
     days: 3,
     baseWeight: 0.7,
     domain: { latMin: 50, latMax: 75, lonMin: -25, lonMax: 40 },

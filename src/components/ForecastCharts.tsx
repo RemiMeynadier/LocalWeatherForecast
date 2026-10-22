@@ -1,6 +1,7 @@
 import { type PointerEvent, useEffect, useRef, useState } from 'react'
 import type { DayForecast } from '../lib/forecast'
-import { CONFIDENCE, dayLabel, mm, pct, shortDate, temp } from '../lib/format'
+import { t } from '../i18n'
+import { confidence, dayLabel, mm, pct, shortDate, temp } from '../lib/format'
 
 const M = { top: 22, right: 64, bottom: 26, left: 36 }
 
@@ -69,7 +70,7 @@ function XAxis({ days, s, y }: { days: DayForecast[]; s: Scale; y: number }) {
       {days.map((d, i) =>
         i % every === 0 ? (
           <text key={d.date} x={s.x(i)} y={y + 16} textAnchor="middle">
-            {i === 0 ? 'Today' : shortDate(d.date)}
+            {i === 0 ? t('todayShort') : shortDate(d.date)}
           </text>
         ) : null,
       )}
@@ -87,7 +88,7 @@ function HorizonMarks({ days, s, top, bottom, labels }: { days: DayForecast[]; s
             <line x1={s.x(lead) - s.step / 2} x2={s.x(lead) - s.step / 2} y1={top} y2={bottom} />
             {labels && (
               <text x={s.x(lead) - s.step / 2 + 4} y={top + 10}>
-                {lead === 10 ? 'D+10 · trend' : 'D+15 · probabilities'}
+                {lead === 10 ? t('hTrend') : t('hProb')}
               </text>
             )}
           </g>
@@ -108,37 +109,37 @@ function Tooltip({ d, x, width }: { d: DayForecast; x: number; width: number }) 
   return (
     <div className="tooltip" style={left ? { right: width - x + 12 } : { left: x + 12 }}>
       <div className="tooltip-title">
-        {dayLabel(d.date)} <span className="muted">· D+{d.lead}</span>
+        {dayLabel(d.date)} <span className="muted">· {t('lead', { n: d.lead })}</span>
       </div>
       <table>
         <tbody>
           <tr>
-            <td><i className="key key-max" />Max</td>
+            <td><i className="key key-max" />{t('lMax')}</td>
             <td>{temp(d.tmax, 1)}</td>
-            <td className="muted">{e ? `${temp(e.tmax.p10)} to ${temp(e.tmax.p90)}` : ''}</td>
+            <td className="muted">{e ? `${temp(e.tmax.p10)} – ${temp(e.tmax.p90)}` : ''}</td>
           </tr>
           <tr>
-            <td><i className="key key-min" />Min</td>
+            <td><i className="key key-min" />{t('lMin')}</td>
             <td>{temp(d.tmin, 1)}</td>
-            <td className="muted">{e ? `${temp(e.tmin.p10)} to ${temp(e.tmin.p90)}` : ''}</td>
+            <td className="muted">{e ? `${temp(e.tmin.p10)} – ${temp(e.tmin.p90)}` : ''}</td>
           </tr>
           {d.normal && (
             <tr>
-              <td><i className="key key-normal" />Normal</td>
+              <td><i className="key key-normal" />{t('normal')}</td>
               <td>{temp(d.normal.tmax)}</td>
               <td className="muted">/ {temp(d.normal.tmin)}</td>
             </tr>
           )}
           <tr>
-            <td><i className="key key-rain" />Rain</td>
+            <td><i className="key key-rain" />{t('rain')}</td>
             <td>{mm(d.precip)}</td>
-            <td className="muted">{e ? `${pct(e.rainProb)} chance ≥ 1 mm` : ''}</td>
+            <td className="muted">{e ? t('rainChance', { p: pct(e.rainProb) }) : ''}</td>
           </tr>
         </tbody>
       </table>
       <div className="muted small">
-        Confidence: {CONFIDENCE[d.confidence].label} ·{' '}
-        {d.source === 'consensus' ? `${d.models.length} models` : `ensembles (${e?.members ?? 0} scenarios)`}
+        {t('confidence')}: {confidence(d.confidence).label} ·{' '}
+        {d.source === 'consensus' ? t('nModels', { n: d.models.length }) : t('nScenarios', { n: e?.members ?? 0 })}
       </div>
     </div>
   )
@@ -199,7 +200,7 @@ export function TemperatureChart({ days, hover, onHover }: ChartProps) {
 
   return (
     <div className="chart" ref={ref}>
-      <svg width={width} height={height} role="img" aria-label="Forecast maximum and minimum temperatures, with uncertainty range and seasonal normals">
+      <svg width={width} height={height} role="img" aria-label={t('ariaTemps')}>
         <g className="grid">
           {niceTicks(lo, hi).map((t) => (
             <g key={t}>
@@ -256,7 +257,7 @@ export function PrecipitationChart({ days, hover, onHover }: ChartProps) {
 
   return (
     <div className="chart" ref={ref}>
-      <svg width={width} height={height} role="img" aria-label="Forecast daily precipitation and chance of rain">
+      <svg width={width} height={height} role="img" aria-label={t('ariaPrecip')}>
         <g className="grid">
           {ticks.map((t) => (
             <g key={t}>
@@ -299,7 +300,7 @@ export function PrecipitationChart({ days, hover, onHover }: ChartProps) {
           ) : null,
         )}
         <text className="end-label" x={M.left + s.innerW + 8} y={plotBottom + 6 + strip - 3}>
-          Chance
+          {t('chanceShort')}
         </text>
         <XAxis days={days} s={s} y={height - M.bottom} />
         <Crosshair s={s} i={hover} top={M.top} bottom={plotBottom + strip + 8} />

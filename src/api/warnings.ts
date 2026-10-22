@@ -22,6 +22,7 @@ export interface OfficialWarning {
   hazard: Hazard
   level: WarningLevel
   event: string
+  eventFr?: string // French wording when the issuing service provides one
   headline: string
   description: string
   onset: string | null
@@ -75,6 +76,7 @@ interface MeteoAlarmEntry {
   level: WarningLevel
   type: number | null
   event: string
+  eventFr?: string
   headline: string
   description: string
   sender: string
@@ -101,6 +103,7 @@ async function fetchMeteoAlarm(region: Region): Promise<WarningsResult | null> {
         hazard: (w.type && METEOALARM_TYPES[w.type]) || 'other',
         level: w.level,
         event: w.event,
+        eventFr: w.eventFr,
         headline: w.headline,
         description: w.description,
         onset: w.onset,

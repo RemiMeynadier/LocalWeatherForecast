@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { type Place, searchPlaces } from '../api/openMeteo'
+import { t } from '../i18n'
 import { placeSubtitle } from '../lib/format'
 
 interface Props {
@@ -53,12 +54,12 @@ export function LocationSearch({ onSelect }: Props) {
   const locate = () => {
     setGeoError(null)
     if (!navigator.geolocation) {
-      setGeoError('Geolocation is not available in this browser.')
+      setGeoError(t('geoUnavailable'))
       return
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => choose({ name: 'My location', lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => setGeoError('Location denied or unavailable.'),
+      (pos) => choose({ name: t('myLocation'), lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => setGeoError(t('geoDenied')),
       { timeout: 10_000 },
     )
   }
@@ -84,8 +85,8 @@ export function LocationSearch({ onSelect }: Props) {
       <div className="search-row">
         <input
           type="search"
-          placeholder="Search a place…"
-          aria-label="Search a place"
+          placeholder={t('search')}
+          aria-label={t('search')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
@@ -95,8 +96,8 @@ export function LocationSearch({ onSelect }: Props) {
           aria-controls="search-results"
           aria-autocomplete="list"
         />
-        <button type="button" className="ghost" onClick={locate} title="Use my location">
-          📍 <span className="hide-sm">My location</span>
+        <button type="button" className="ghost" onClick={locate} title={t('useMyLocation')}>
+          📍 <span className="hide-sm">{t('myLocation')}</span>
         </button>
       </div>
       {geoError && <p className="hint error">{geoError}</p>}

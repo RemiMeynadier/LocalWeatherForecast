@@ -1,4 +1,5 @@
 import type { DayForecast } from '../lib/forecast'
+import { percent, t } from '../i18n'
 import { compactDay, temp } from '../lib/format'
 import { DETERMINISTIC_MODELS, ENSEMBLE_MODELS, hasLocalHighRes, selectDeterministicModels } from '../lib/models'
 
@@ -7,19 +8,18 @@ interface Props {
   lat: number
   lon: number
   failed: string[]
-  backtested: boolean
 }
 
 export function AiBadge() {
   return (
-    <span className="badge ai" title="Machine-learning model">
+    <span className="badge ai" title={t('aiTip')}>
       AI
     </span>
   )
 }
 
 // Side-by-side max/min per model for the next week, so disagreement is visible.
-export function ModelsPanel({ days, lat, lon, failed, backtested }: Props) {
+export function ModelsPanel({ days, lat, lon, failed }: Props) {
   const models = selectDeterministicModels(lat, lon)
   const week = days.slice(0, 8)
   const totalWeight = (d: DayForecast) => d.models.reduce((a, m) => a + m.weight, 0)
@@ -30,7 +30,7 @@ export function ModelsPanel({ days, lat, lon, failed, backtested }: Props) {
         <table className="models">
           <thead>
             <tr>
-              <th scope="col">Model</th>
+              <th scope="col">{t('model')}</th>
               {week.map((d) => (
                 <th key={d.date} scope="col">{compactDay(d.date, d.lead)}</th>
               ))}
@@ -47,14 +47,14 @@ export function ModelsPanel({ days, lat, lon, failed, backtested }: Props) {
                     </span>
                     <span className="muted small">
                       {m.provider}
-                      {local && <> · <span className="badge">{m.highRes!.name} local</span></>}
+                      {local && <> · <span className="badge">{m.highRes!.name} {t('local')}</span></>}
                     </span>
                   </th>
                   {week.map((d) => {
                     const v = d.models.find((x) => x.model === m.id)
                     const share = v ? v.weight / totalWeight(d) : 0
                     return (
-                      <td key={d.date} title={v ? `Weight in the day's blend: ${Math.round(share * 100)}%` : 'Beyond the model’s range'}>
+                      <td key={d.date} title={v ? t('weightTip', { p: percent(share) }) : t('outOfRange')}>
                         {v ? (
                           <>
                             <span className="tmax">{temp(v.tmax)}</span> <span className="tmin">{temp(v.tmin)}</span>
@@ -70,7 +70,7 @@ export function ModelsPanel({ days, lat, lon, failed, backtested }: Props) {
               )
             })}
             <tr className="consensus">
-              <th scope="row">Weighted blend</th>
+              <th scope="row">{t('blend')}</th>
               {week.map((d) => (
                 <td key={d.date}>
                   <span className="tmax">{temp(d.tmax)}</span> <span className="tmin">{temp(d.tmin)}</span>
@@ -81,14 +81,9 @@ export function ModelsPanel({ days, lat, lon, failed, backtested }: Props) {
         </table>
       </div>
       <p className="muted small">
-        The bar under each value shows the model’s weight in that day’s blend
-        {backtested ? ', after the backtest adjustment' : ''}. Ensembles used:{' '}
-        {ENSEMBLE_MODELS.map((m) => `${m.label}${m.ai ? ' (AI)' : ''} (${m.members} members, ${m.days} d)`).join(', ')}.
-        {failed.length > 0 && <> Currently unavailable: {failed.join(', ')}.</>}
-      </p>
-      <p className="muted small">
-        Regional models not used here (outside their domain):{' '}
-        {DETERMINISTIC_MODELS.filter((m) => !models.includes(m)).map((m) => m.label).join(', ') || 'none'}.
+        {t('modelsNote', { e: ENSEMBLE_MODELS.map((m) => `${m.label}${m.ai ? ' (AI)' : ''}`).join(', ') })}
+        {failed.length > 0 && <> {t('unavailable', { x: failed.join(', ') })}</>}{' '}
+        {t('notUsed', { x: DETERMINISTIC_MODELS.filter((m) => !models.includes(m)).map((m) => m.label).join(', ') || '—' })}
       </p>
     </>
   )

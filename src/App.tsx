@@ -7,7 +7,8 @@ import { PrecipitationChart, TemperatureChart } from './components/ForecastChart
 import { LocationSearch } from './components/LocationSearch'
 import { ModelsPanel } from './components/ModelsPanel'
 import { WeeklyOutlook } from './components/WeeklyOutlook'
-import { CONFIDENCE, dayLabel, mm, pct, placeSubtitle, temp, weather } from './lib/format'
+import { getLang, type Lang, setLang, t, tList } from './i18n'
+import { confidence, dayLabel, mm, pct, placeSubtitle, temp, weather } from './lib/format'
 import { useForecast } from './lib/useForecast'
 
 const STORAGE_KEY = 'lwf.place'
@@ -18,7 +19,7 @@ function initialPlace(): Place {
   const lat = Number(q.get('lat'))
   const lon = Number(q.get('lon'))
   if (q.has('lat') && q.has('lon') && Number.isFinite(lat) && Number.isFinite(lon)) {
-    return { name: q.get('name') ?? 'Location', lat, lon }
+    return { name: q.get('name') ?? '—', lat, lon }
   }
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -31,12 +32,22 @@ function initialPlace(): Place {
 
 export default function App() {
   const [place, setPlace] = useState<Place>(initialPlace)
+  const [lang, setLangState] = useState<Lang>(getLang)
   const [hover, setHover] = useState<number | null>(null)
-  const f = useForecast(place)
+  const f = useForecast(place, lang)
   const { days, weeks } = f
 
+  const toggleLang = () => {
+    const next = lang === 'en' ? 'fr' : 'en'
+    setLang(next) // module-level, read by formatters during the next render
+    setLangState(next)
+  }
+
   useEffect(() => {
-    const q = new URLSearchParams({ lat: place.lat.toFixed(4), lon: place.lon.toFixed(4), name: place.name })
+    document.documentElement.lang = lang
+  }, [lang])
+  useEffect(() => {
+    const q = new URLSearchParams({ lat: place.lat.toFixed(4), lon: place.lon.toFixed(4), name: place.name, lang })
     history.replaceState(null, '', `${location.pathname}?${q}`)
     document.title = `${place.name} · LocalWeatherForecast`
     try {
@@ -44,7 +55,7 @@ export default function App() {
     } catch {
       // Not critical.
     }
-  }, [place])
+  }, [place, lang])
 
   const today = days[0]
   const w = weather(today?.code ?? null)
@@ -59,6 +70,10 @@ export default function App() {
           <span>LocalWeatherForecast</span>
         </div>
         <LocationSearch onSelect={setPlace} />
+        <button type="button" className="lang" onClick={toggleLang} title={t('switchLang')} aria-label={t('switchLang')}>
+          <span className={lang === 'fr' ? 'on' : ''}>FR</span>
+          <span className={lang === 'en' ? 'on' : ''}>EN</span>
+        </button>
       </header>
 
       <main>
@@ -87,11 +102,11 @@ export default function App() {
           )}
         </section>
 
-        {f.error && <p className="notice error">Error: {f.error}</p>}
-        {f.loading && <p className="notice">Loading models…</p>}
+        {f.error && <p className="notice error">{t('error', { msg: f.error })}</p>}
+        {f.loading && <p className="notice">{t('loading')}</p>}
 
         <section>
-          <h2>Synoptic situation</h2>
+          <h2>{t('synoptic')}</h2>
           <SynopticBriefingView
             briefing={f.briefing}
             grid={f.grid}
@@ -105,7 +120,10 @@ export default function App() {
         {days.length > 0 && (
           <>
             <section className={alertCount ? (severe ? 'has-warning' : 'has-watch') : ''}>
-              <h2>Extremes &amp; warnings{alertCount > 0 && ` (${alertCount})`}</h2>
+              <h2>
+                {t('extremes')}
+                {alertCount > 0 && ` (${alertCount})`}
+              </h2>
               <AlertsView
                 alerts={f.alerts}
                 warnings={f.warnings}
@@ -115,18 +133,18 @@ export default function App() {
             </section>
 
             <section>
-              <h2>Next 10 days</h2>
+              <h2>{t('next10')}</h2>
               <DailyCards days={days.slice(0, 10)} />
             </section>
 
             <section>
               <div className="section-head">
-                <h2>Temperatures over {days.length} days</h2>
+                <h2>{t('temps', { n: days.length })}</h2>
                 <ul className="legend">
-                  <li><i className="key key-max" />Max (best estimate)</li>
-                  <li><i className="key key-min" />Min</li>
-                  <li><i className="key key-band" />Likely range (80% / 50% of scenarios)</li>
-                  <li><i className="key key-normal" />1991–2020 normals{f.climateLoading && ' (loading…)'}</li>
+                  <li><i className="key key-max" />{t('lMax')}</li>
+                  <li><i className="key key-min" />{t('lMin')}</li>
+                  <li><i className="key key-band" />{t('lRange')}</li>
+                  <li><i className="key key-normal" />{t('lNormals')}{f.climateLoading && ` ${t('lLoading')}`}</li>
                 </ul>
               </div>
               <TemperatureChart days={days} hover={hover} onHover={setHover} />
@@ -134,56 +152,47 @@ export default function App() {
 
             <section>
               <div className="section-head">
-                <h2>Precipitation</h2>
+                <h2>{t('precip')}</h2>
                 <ul className="legend">
-                  <li><i className="key key-rain" />Expected daily total</li>
-                  <li><i className="key key-prob" />Chance of ≥ 1 mm (darker = more likely)</li>
+                  <li><i className="key key-rain" />{t('lRain')}</li>
+                  <li><i className="key key-prob" />{t('lProb')}</li>
                 </ul>
               </div>
               <PrecipitationChart days={days} hover={hover} onHover={setHover} />
             </section>
 
             <section>
-              <h2>Week-by-week outlook</h2>
-              <p className="muted lede">
-                Beyond 10 days, the weather of a given day can no longer be forecast, but ensembles still show whether a
-                week will be warmer, colder, drier or wetter than normal. With no signal, each category is at 33%.
-              </p>
+              <h2>{t('weekly')}</h2>
+              <p className="muted lede">{t('weeklyLede')}</p>
               <WeeklyOutlook weeks={weeks} hasClimate={f.hasClimate} />
             </section>
 
             <section>
-              <h2>Backtest &amp; model weighting</h2>
+              <h2>{t('backtest')}</h2>
               <BacktestPanel state={f.backtest} loading={f.backtestLoading} error={f.backtestError} days={days} />
             </section>
 
             <section>
-              <h2>What the models say</h2>
-              <ModelsPanel
-                days={days}
-                lat={place.lat}
-                lon={place.lon}
-                failed={f.failed}
-                backtested={f.backtest?.status === 'ok'}
-              />
+              <h2>{t('models')}</h2>
+              <ModelsPanel days={days} lat={place.lat} lon={place.lon} failed={f.failed} />
             </section>
 
             <section>
               <details className="data-table">
-                <summary>Show all data as a table</summary>
+                <summary>{t('dataTable')}</summary>
                 <div className="table-wrap">
                   <table>
                     <thead>
                       <tr>
-                        <th scope="col">Day</th>
-                        <th scope="col">Max</th>
-                        <th scope="col">Min</th>
-                        <th scope="col">Max range (80%)</th>
-                        <th scope="col">Normals</th>
-                        <th scope="col">Rain</th>
-                        <th scope="col">Chance of rain</th>
-                        <th scope="col">Gusts</th>
-                        <th scope="col">Confidence</th>
+                        <th scope="col">{t('tDay')}</th>
+                        <th scope="col">{t('lMax')}</th>
+                        <th scope="col">{t('lMin')}</th>
+                        <th scope="col">{t('tMaxRange')}</th>
+                        <th scope="col">{t('tNormals')}</th>
+                        <th scope="col">{t('rain')}</th>
+                        <th scope="col">{t('lProb')}</th>
+                        <th scope="col">{t('tGusts')}</th>
+                        <th scope="col">{t('confidence')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -197,7 +206,7 @@ export default function App() {
                           <td>{mm(d.precip)}</td>
                           <td>{pct(d.ensemble?.rainProb)}</td>
                           <td>{d.gust != null ? `${Math.round(d.gust)} km/h` : '—'}</td>
-                          <td>{CONFIDENCE[d.confidence].label}</td>
+                          <td>{confidence(d.confidence).label}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -207,45 +216,24 @@ export default function App() {
             </section>
 
             <section className="method">
-              <h2>Method</h2>
-              <ul>
-                <li>
-                  <strong>D0 to D+3:</strong> high-resolution models covering your location (AROME, ICON-D2, UKV, HRRR,
-                  HARMONIE…) get the most weight, as they resolve relief, coastlines and thunderstorms.
-                </li>
-                <li>
-                  <strong>D+4 to D+15:</strong> weighted blend of global models, physics-based (ECMWF IFS, ICON, UKMO,
-                  GFS, GEM, JMA) and AI (ECMWF AIFS, NOAA AIGFS).
-                </li>
-                <li>
-                  <strong>Backtest:</strong> each model’s forecasts from the last 7 days are scored against the nearest
-                  airport’s hourly observations, and the weights are adjusted accordingly (see above).
-                </li>
-                <li>
-                  <strong>Beyond D+15:</strong> ensembles only (ECMWF ENS, AIFS ENS, GEFS, AIGEFS, ICON-EPS). The page
-                  shows their median, spread and probabilities against the 1991–2020 normals (ERA5 reanalysis).
-                </li>
-                <li>
-                  <strong>Extremes:</strong> forecasts are compared with local climate percentiles and absolute
-                  thresholds, then cross-checked with official warnings (MeteoAlarm in Europe, NWS in the US).
-                </li>
-                <li>
-                  AI models tend to smooth extremes. Gusts and thunderstorm flags therefore come from physics-based
-                  models only (AI models don’t provide them).
-                </li>
-              </ul>
+              <details>
+                <summary>{t('method')}</summary>
+                <ul>
+                  {tList('methodItems').map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </details>
             </section>
           </>
         )}
       </main>
 
       <footer className="foot muted small">
-        Data: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo.com</a> (CC BY 4.0) from
-        ECMWF, DWD, NOAA, Météo-France, Met Office, ECCC, JMA, KNMI, DMI, MET Norway · Normals: ERA5 (Copernicus) ·
-        Observations: METAR via{' '}
-        <a href="https://mesonet.agron.iastate.edu/" target="_blank" rel="noreferrer">Iowa Environmental Mesonet</a> ·
-        Warnings: <a href="https://meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>,{' '}
-        <a href="https://www.weather.gov/" target="_blank" rel="noreferrer">NWS</a> · Reverse geocoding: BigDataCloud.
+        {t('data')}: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> (CC BY 4.0) ·
+        METAR: <a href="https://mesonet.agron.iastate.edu/" target="_blank" rel="noreferrer">IEM</a> ·{' '}
+        <a href="https://meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a> ·{' '}
+        <a href="https://www.weather.gov/" target="_blank" rel="noreferrer">NWS</a> · ERA5 (Copernicus) · BigDataCloud
       </footer>
     </div>
   )

@@ -1,10 +1,11 @@
 import type { DayForecast } from '../lib/forecast'
-import { CONFIDENCE, dayLabel, mm, pct, relativeDay, temp, weather } from '../lib/format'
+import { t } from '../i18n'
+import { confidence, dayLabel, mm, pct, relativeDay, temp, weather } from '../lib/format'
 
 export function ConfidenceDots({ level }: { level: DayForecast['confidence'] }) {
-  const c = CONFIDENCE[level]
+  const c = confidence(level)
   return (
-    <span className="confidence" title={`Confidence: ${c.label}. ${c.hint}`}>
+    <span className="confidence" title={`${t('confidence')}: ${c.label}`}>
       <span className="dots" aria-hidden="true">
         {[0, 1, 2, 3].map((i) => (
           <i key={i} className={i < c.dots ? 'on' : ''} />
@@ -37,8 +38,8 @@ export function DailyCards({ days }: { days: DayForecast[] }) {
               <span className="tmin">{temp(d.tmin)}</span>
             </div>
             {lo != null && hi != null && d.lead > 2 && (
-              <div className="muted small" title="80% of ensemble scenarios give a maximum in this range">
-                max {temp(lo)} to {temp(hi)}
+              <div className="muted small" title={t('maxRangeTip')}>
+                {t('maxRange', { lo: temp(lo), hi: temp(hi) })}
               </div>
             )}
             <div className="card-rain">

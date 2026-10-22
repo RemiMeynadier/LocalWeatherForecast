@@ -1,7 +1,9 @@
-// Turns the pressure / 500 hPa / 850 hPa grid into a plain-English synoptic
+// Turns the pressure / 500 hPa / 850 hPa grid into a short synoptic
 // briefing: pressure centres, flow, troughs and ridges, and how they evolve.
 
 import type { SynopticGrid } from '../api/openMeteo'
+import { t as tr, tList } from '../i18n'
+import { weekday } from './format'
 
 export interface PressureCentre {
   kind: 'H' | 'L'
@@ -20,8 +22,9 @@ export interface SynopticStep {
   mslp: number
   z500: number
   t850: number
-  surfaceFlow: { from: string; strength: Strength; kmh: number } | null
-  upperFlow: { from: string } | null
+  // `from` = compass sector the wind blows from (0 = N, 1 = NE, ... 7 = NW)
+  surfaceFlow: { from: number; strength: Strength; kmh: number } | null
+  upperFlow: { from: number } | null
   upper: 'trough' | 'ridge' | 'flat'
   upstream: 'trough' | 'ridge' | 'flat'
 }
@@ -31,11 +34,7 @@ export interface SynopticBriefing {
   paragraphs: { heading: string; text: string }[]
 }
 
-const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west']
-const ADJ = ['northerly', 'north-easterly', 'easterly', 'south-easterly', 'southerly', 'south-westerly', 'westerly', 'north-westerly']
-
-export const compass = (deg: number) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8]
-const adjective = (fromDeg: number) => ADJ[Math.round((((fromDeg % 360) + 360) % 360) / 45) % 8]
+export const sector = (deg: number) => Math.round((((deg % 360) + 360) % 360) / 45) % 8
 
 function bearingAndDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const r = Math.PI / 180
@@ -123,60 +122,61 @@ export function analyseStep(grid: SynopticGrid, t: number, step: number): Synopt
     mslp: p[r][c],
     z500: z[r][c],
     t850: grid.t850[t][r][c],
-    surfaceFlow: { from: strength === 'slack' ? '' : adjective(flowFrom(g.dx, g.dy, lat)), strength, kmh },
-    upperFlow: Math.hypot(gz.dx, gz.dy) * 100 < 0.5 ? null : { from: adjective(flowFrom(gz.dx, gz.dy, lat)) },
+    surfaceFlow: { from: sector(flowFrom(g.dx, g.dy, lat)), strength, kmh },
+    upperFlow: Math.hypot(gz.dx, gz.dy) * 100 < 0.5 ? null : { from: sector(flowFrom(gz.dx, gz.dy, lat)) },
     upper: kind(lap),
     upstream: kind(lapUp),
   }
 }
 
-const dayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' })
-const dayName = (iso: string) => dayFmt.format(new Date(`${iso}Z`))
+const dayName = (iso: string) => weekday(iso)
+const signedInt = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))}`
+
+const STRENGTH = { slack: 'sLight', light: 'sLight', moderate: 'sModerate', strong: 'sStrong', severe: 'sSevere' } as const
+
+function flowText(f: SynopticStep['surfaceFlow']): string {
+  if (!f || f.strength === 'slack') return tr('flowSlack')
+  return tr('flow', { strength: tr(STRENGTH[f.strength]), from: tList('fromDirs')[f.from] })
+}
 
 function describeCentres(step: SynopticStep, lat: number, lon: number): string {
-  const parts: string[] = []
+  let out = ''
   for (const kind of ['H', 'L'] as const) {
     const near = step.centres
       .filter((x) => x.kind === kind)
       .map((x) => ({ ...x, ...bearingAndDistance(lat, lon, x.lat, x.lon) }))
       .sort((a, b) => a.km - b.km)[0]
     if (!near) continue
-    const what = kind === 'H' ? 'An anticyclone' : 'A depression'
-    const where = near.km < 250 ? 'is centred close by' : `lies about ${Math.round(near.km / 100) * 100} km to the ${compass(near.bearing)}`
-    parts.push(`${what} (${Math.round(near.value)} hPa) ${where}.`)
+    const v = Math.round(near.value)
+    if (near.km < 250) out += tr(kind === 'H' ? 'cHighNear' : 'cLowNear', { v })
+    else {
+      const km = Math.round(near.km / 100) * 100
+      out += tr(kind === 'H' ? 'cHighFar' : 'cLowFar', { v, km, dir: tList('dirs')[sector(near.bearing)] })
+    }
   }
-  return parts.join(' ')
+  return out
 }
 
 function regime(mslp: number): string {
-  if (mslp >= 1025) return 'firmly anticyclonic'
-  if (mslp >= 1018) return 'anticyclonic'
-  if (mslp >= 1008) return 'near-neutral'
-  if (mslp >= 995) return 'cyclonic'
-  return 'deeply cyclonic'
+  if (mslp >= 1025) return tr('rFirmHigh')
+  if (mslp >= 1018) return tr('rHigh')
+  if (mslp >= 1008) return tr('rNeutral')
+  if (mslp >= 995) return tr('rLow')
+  return tr('rDeepLow')
 }
 
 function describeNow(s: SynopticStep, lat: number, lon: number): string {
-  const flow =
-    s.surfaceFlow?.strength === 'slack'
-      ? 'Pressure gradients are slack, so surface winds are light and variable.'
-      : `The surface flow is ${s.surfaceFlow!.strength === 'severe' ? 'very strong' : s.surfaceFlow!.strength} and ${s.surfaceFlow!.from}.`
   const upper =
-    s.upper === 'trough'
-      ? 'At 500 hPa an upper trough sits overhead, favouring instability and showers.'
-      : s.upper === 'ridge'
-        ? 'At 500 hPa an upper ridge sits overhead, favouring subsidence and settled weather.'
-        : `At 500 hPa the flow is fairly straight${s.upperFlow ? ` and ${s.upperFlow.from}` : ''}.`
-  const upstream =
-    s.upstream === 'trough' && s.upper !== 'trough'
-      ? ' An upper trough lies upstream to the west.'
-      : s.upstream === 'ridge' && s.upper !== 'ridge'
-        ? ' An upper ridge lies upstream to the west.'
-        : ''
-  return (
-    `Surface pressure ${Math.round(s.mslp)} hPa: ${regime(s.mslp)} conditions. ${describeCentres(s, lat, lon)} ${flow} ` +
-    `${upper}${upstream} The 850 hPa temperature is ${s.t850.toFixed(0)} °C.`
-  ).replace(/\s+/g, ' ')
+    tr(s.upper === 'trough' ? 'uTrough' : s.upper === 'ridge' ? 'uRidge' : 'uFlat') +
+    (s.upstream === 'trough' && s.upper !== 'trough' ? tr('uTroughUp') : s.upstream === 'ridge' && s.upper !== 'ridge' ? tr('uRidgeUp') : '')
+  return tr('sNow', {
+    p: Math.round(s.mslp),
+    regime: regime(s.mslp),
+    centres: describeCentres(s, lat, lon),
+    flow: flowText(s.surfaceFlow),
+    upper,
+    t: Math.round(s.t850),
+  })
 }
 
 // Describes the evolution over consecutive 6-hourly steps. Looking at every
@@ -184,62 +184,47 @@ function describeNow(s: SynopticStep, lat: number, lon: number): string {
 function describeChange(window: SynopticStep[]): string {
   const a = window[0]
   const b = window[window.length - 1]
-  const hours = (window.length - 1) * 6
   const deepest = window.reduce((m, s) => (s.mslp < m.mslp ? s : m), a)
   const dp = b.mslp - a.mslp
   const dt = b.t850 - a.t850
-  const when = dayName(b.time)
+  const end = dayName(b.time)
   const out: string[] = []
   const dip = Math.min(a.mslp, b.mslp) - deepest.mslp
   if (dip >= 4 && deepest !== a && deepest !== b) {
-    out.push(
-      `Pressure dips to ${Math.round(deepest.mslp)} hPa around ${dayName(deepest.time)} as a low or frontal system ` +
-        `passes, then recovers (${dp >= 0 ? '+' : ''}${dp.toFixed(0)} hPa overall by ${when}).`,
-    )
-  } else if (dp <= -8) {
-    out.push(`Pressure falls sharply (${dp.toFixed(0)} hPa by ${when}): a low or frontal system approaches, bringing wind and rain risk.`)
-  } else if (dp <= -3) {
-    out.push(`Pressure eases (${dp.toFixed(0)} hPa by ${when}), so conditions turn more unsettled.`)
-  } else if (dp >= 8) {
-    out.push(`Pressure rises strongly (+${dp.toFixed(0)} hPa by ${when}) as high pressure builds in.`)
-  } else if (dp >= 3) {
-    out.push(`Pressure rises (+${dp.toFixed(0)} hPa by ${when}), so conditions settle.`)
-  } else {
-    out.push(`Pressure changes little over the next ${hours} h (${dp >= 0 ? '+' : ''}${dp.toFixed(0)} hPa).`)
-  }
+    out.push(tr('chDip', { p: Math.round(deepest.mslp), day: dayName(deepest.time), dp: signedInt(dp), end }))
+  } else if (dp <= -8) out.push(tr('chFallSharp', { dp: signedInt(dp), end }))
+  else if (dp <= -3) out.push(tr('chFall', { dp: signedInt(dp), end }))
+  else if (dp >= 8) out.push(tr('chRiseStrong', { dp: Math.round(dp), end }))
+  else if (dp >= 3) out.push(tr('chRise', { dp: Math.round(dp), end }))
+  else out.push(tr('chSteady', { dp: signedInt(dp) }))
+
   const windiest = window.slice(1).reduce((m, s) => ((s.surfaceFlow?.kmh ?? 0) > (m.surfaceFlow?.kmh ?? 0) ? s : m), window[1] ?? a)
   const strong = windiest.surfaceFlow && ['strong', 'severe'].includes(windiest.surfaceFlow.strength) ? windiest : null
   if (strong) {
-    const sf = strong.surfaceFlow!
-    out.push(
-      `The pressure gradient is tightest around ${dayName(strong.time)}, with a ${sf.strength === 'severe' ? 'very strong' : 'strong'} ${sf.from} flow` +
-        (sf.strength === 'severe' ? ': gales are likely, especially on coasts and hills.' : '.'),
-    )
+    out.push(tr('chWind', { day: dayName(strong.time), flow: flowText(strong.surfaceFlow) }) + (strong.surfaceFlow!.strength === 'severe' ? tr('chGales') : ''))
   }
-  if (dt >= 4) out.push(`A markedly warmer air mass arrives (850 hPa +${dt.toFixed(0)} °C).`)
-  else if (dt <= -4) out.push(`A markedly colder air mass follows (850 hPa ${dt.toFixed(0)} °C).`)
+  if (dt >= 4) out.push(tr('chWarmer', { dt: Math.round(dt) }))
+  else if (dt <= -4) out.push(tr('chColder', { dt: signedInt(dt) }))
   const upper = window.slice(1).find((s) => s.upper !== 'flat' && s.upper !== a.upper)
-  if (upper) out.push(`An upper ${upper.upper} moves overhead around ${dayName(upper.time)}.`)
+  if (upper) out.push(tr(upper.upper === 'trough' ? 'chUpperTrough' : 'chUpperRidge', { day: dayName(upper.time) }))
   if (!strong && b.surfaceFlow && b.surfaceFlow.strength !== 'slack' && b.surfaceFlow.from !== a.surfaceFlow?.from) {
-    out.push(`The wind turns ${b.surfaceFlow.from} (${b.surfaceFlow.strength}).`)
+    out.push(tr('chTurn', { from: tList('fromDirs')[b.surfaceFlow.from] }))
   }
   return out.join(' ')
 }
 
 export function synopticBriefing(grid: SynopticGrid, lat: number, lon: number, step: number): SynopticBriefing {
-  const steps = grid.times.map((_, t) => analyseStep(grid, t, step))
-  // Steps are 6-hourly: index 0 = now (00 UTC of today), 8 = +48 h, 20 = +120 h.
+  const steps = grid.times.map((_, i) => analyseStep(grid, i, step))
+  // Steps are 6-hourly: index 0 = 00 UTC today, +8 = +48 h, +20 = +120 h.
   const i0 = Math.min(steps.length - 1, Math.floor(new Date().getUTCHours() / 6))
   const i48 = Math.min(steps.length - 1, i0 + 8)
   const i120 = Math.min(steps.length - 1, i0 + 20)
-  const now = steps[i0]
-  const in120 = steps[i120]
   return {
     steps,
     paragraphs: [
-      { heading: 'Now', text: describeNow(now, lat, lon) },
-      { heading: 'Next 48 hours', text: describeChange(steps.slice(i0, i48 + 1)) },
-      { heading: 'Days 3 to 5', text: `${describeChange(steps.slice(i48, i120 + 1))} ${describeCentres(in120, lat, lon)}`.trim() },
+      { heading: tr('synNow'), text: describeNow(steps[i0], lat, lon) },
+      { heading: tr('syn48'), text: describeChange(steps.slice(i0, i48 + 1)) },
+      { heading: tr('syn35'), text: describeChange(steps.slice(i48, i120 + 1)) },
     ],
   }
 }

@@ -4,6 +4,8 @@ import type { BacktestResult } from '../lib/backtest'
 import type { DayForecast } from '../lib/forecast'
 import { DETERMINISTIC_MODELS } from '../lib/models'
 import type { BacktestState } from '../lib/useForecast'
+import { num, t } from '../i18n'
+import { compactDay, utcTime } from '../lib/format'
 import { AiBadge } from './ModelsPanel'
 
 const label = (id: string) => DETERMINISTIC_MODELS.find((m) => m.id === id)?.label ?? id
@@ -31,24 +33,24 @@ function WeightBars({ days }: { days: DayForecast[] }) {
   return (
     <figure className="bt-figure">
       <figcaption>
-        <strong>Model weights in the temperature blend</strong>
-        <div className="segmented" role="group" aria-label="Lead time">
+        <strong>{t('btWeights')}</strong>
+        <div className="segmented" role="group" aria-label={t('leadTime')}>
           {leads.map((l) => (
             <button key={l} type="button" aria-pressed={l === lead} onClick={() => setLead(l)}>
-              D+{l}
+              {t('lead', { n: l })}
             </button>
           ))}
         </div>
       </figcaption>
       <ul className="legend">
-        <li><i className="key key-prior" />Before backtest (fixed rules)</li>
-        <li><i className="key key-after" />After backtest</li>
+        <li><i className="key key-prior" />{t('btBefore')}</li>
+        <li><i className="key key-after" />{t('btAfter')}</li>
       </ul>
       <div className="wbars">
         {rows.map((r) => {
           const change = r.after / r.prior - 1
           return (
-            <div key={r.model} className="wbar-row" title={`${label(r.model)}: ${(r.prior * 100).toFixed(1)}% → ${(r.after * 100).toFixed(1)}%`}>
+            <div key={r.model} className="wbar-row" title={`${label(r.model)}: ${num(r.prior * 100, 1)} → ${num(r.after * 100, 1)} %`}>
               <span className="wbar-label">
                 {label(r.model)} {isAi(r.model) && <AiBadge />}
               </span>
@@ -76,20 +78,17 @@ function ErrorHeatmap({ result }: { result: BacktestResult }) {
   return (
     <figure className="bt-figure">
       <figcaption>
-        <strong>Temperature error by lead time</strong>
-        <span className="muted small">
-          Mean absolute error (°C) of hourly temperature vs. observations, by how many days before the run was issued.
-          Darker = larger error.
-        </span>
+        <strong>{t('btError2')}</strong>
+        <span className="muted small">{t('btErrorSub')}</span>
       </figcaption>
       <div className="table-wrap">
         <table className="heatmap">
           <thead>
             <tr>
-              <th scope="col">Model</th>
-              {leads.map((l) => <th key={l} scope="col">D+{l}</th>)}
-              <th scope="col" title="Mean forecast minus observed, D+1">Bias D+1</th>
-              <th scope="col" title="Equitable threat score for rain/no rain in 3-hour blocks (1 = perfect, 0 = no skill)">Rain skill D+1</th>
+              <th scope="col">{t('model')}</th>
+              {leads.map((l) => <th key={l} scope="col">{t('lead', { n: l })}</th>)}
+              <th scope="col" title={t('btBiasTip')}>{t('btBias')}</th>
+              <th scope="col" title={t('btRainTip')}>{t('btRain')}</th>
             </tr>
           </thead>
           <tbody>
@@ -103,13 +102,13 @@ function ErrorHeatmap({ result }: { result: BacktestResult }) {
                   if (!sc) return <td key={l} className="muted na">·</td>
                   const c = rampColor(sc.mae)
                   return (
-                    <td key={l} className="cell" style={{ background: c.bg, color: c.ink }} title={`${label(s.model)}, D+${l}: MAE ${sc.mae.toFixed(2)} °C, bias ${sc.bias >= 0 ? '+' : ''}${sc.bias.toFixed(2)} °C (${sc.n} hours)`}>
-                      {sc.mae.toFixed(1)}
+                    <td key={l} className="cell" style={{ background: c.bg, color: c.ink }} title={`${label(s.model)}, ${t('lead', { n: l })}: MAE ${num(sc.mae, 2)} °C, bias ${sc.bias >= 0 ? '+' : ''}${num(sc.bias, 2)} °C`}>
+                      {num(sc.mae, 1)}
                     </td>
                   )
                 })}
-                <td>{s.leads[1] ? `${s.leads[1].bias >= 0 ? '+' : '−'}${Math.abs(s.leads[1].bias).toFixed(1)}°` : '—'}</td>
-                <td>{s.leads[1]?.rain.ets != null ? s.leads[1].rain.ets.toFixed(2) : '—'}</td>
+                <td>{s.leads[1] ? `${s.leads[1].bias >= 0 ? '+' : '−'}${num(Math.abs(s.leads[1].bias), 1)}°` : '—'}</td>
+                <td>{s.leads[1]?.rain.ets != null ? num(s.leads[1].rain.ets, 2) : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -131,8 +130,7 @@ function useWidth() {
   return { ref, width }
 }
 
-const hourFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
-const dayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', timeZone: 'UTC' })
+const dayShort = (time: string) => compactDay(time.slice(0, 10), 1)
 
 function ObsChart({ result }: { result: BacktestResult }) {
   const { ref, width } = useWidth()
@@ -175,16 +173,15 @@ function ObsChart({ result }: { result: BacktestResult }) {
   return (
     <figure className="bt-figure">
       <figcaption>
-        <strong>Observed vs. forecast the day before</strong>
-        <span className="muted small">Hourly temperature at the station; forecasts issued 1 day earlier by the best and worst model of the week.</span>
+        <strong>{t('btObs')}</strong>
       </figcaption>
       <ul className="legend">
-        <li><i className="key key-obs" />Observed</li>
-        <li><i className="key key-best" />Best: {label(best)} (MAE {ranked[0].leads[1]!.mae.toFixed(1)} °C)</li>
-        <li><i className="key key-worst" />Worst: {label(worst)} (MAE {ranked[ranked.length - 1].leads[1]!.mae.toFixed(1)} °C)</li>
+        <li><i className="key key-obs" />{t('observed')}</li>
+        <li><i className="key key-best" />{t('best', { m: label(best) })} ({num(ranked[0].leads[1]!.mae, 1)} °C)</li>
+        <li><i className="key key-worst" />{t('worst', { m: label(worst) })} ({num(ranked[ranked.length - 1].leads[1]!.mae, 1)} °C)</li>
       </ul>
       <div className="chart" ref={ref}>
-        <svg width={width} height={height} role="img" aria-label="Observed temperature compared with the best and worst model forecasts">
+        <svg width={width} height={height} role="img" aria-label={t('ariaObs')}>
           <g className="grid">
             {ticks.map((t) => (
               <g key={t}>
@@ -197,7 +194,7 @@ function ObsChart({ result }: { result: BacktestResult }) {
             <line x1={M.left} x2={width - M.right} y1={height - M.bottom} y2={height - M.bottom} className="baseline" />
             {pts.map((p, i) =>
               p.time.endsWith('T12:00') ? (
-                <text key={p.time} x={x(i)} y={height - 6} textAnchor="middle">{dayFmt.format(new Date(`${p.time}Z`))}</text>
+                <text key={p.time} x={x(i)} y={height - 6} textAnchor="middle">{dayShort(p.time)}</text>
               ) : null,
             )}
           </g>
@@ -209,12 +206,12 @@ function ObsChart({ result }: { result: BacktestResult }) {
         </svg>
         {hp && hover != null && (
           <div className="tooltip" style={x(hover) > width / 2 ? { right: width - x(hover) + 12 } : { left: x(hover) + 12 }}>
-            <div className="tooltip-title">{hourFmt.format(new Date(`${hp.time}Z`))} UTC</div>
+            <div className="tooltip-title">{utcTime(hp.time)} UTC</div>
             <table>
               <tbody>
-                <tr><td><i className="key key-obs" />Observed</td><td>{hp.obs != null ? `${hp.obs.toFixed(1)}°` : '—'}</td></tr>
-                <tr><td><i className="key key-best" />{label(best)}</td><td>{hp.byModel[best] != null ? `${hp.byModel[best]!.toFixed(1)}°` : '—'}</td></tr>
-                <tr><td><i className="key key-worst" />{label(worst)}</td><td>{hp.byModel[worst] != null ? `${hp.byModel[worst]!.toFixed(1)}°` : '—'}</td></tr>
+                <tr><td><i className="key key-obs" />{t('observed')}</td><td>{hp.obs != null ? `${num(hp.obs, 1)}°` : '—'}</td></tr>
+                <tr><td><i className="key key-best" />{label(best)}</td><td>{hp.byModel[best] != null ? `${num(hp.byModel[best]!, 1)}°` : '—'}</td></tr>
+                <tr><td><i className="key key-worst" />{label(worst)}</td><td>{hp.byModel[worst] != null ? `${num(hp.byModel[worst]!, 1)}°` : '—'}</td></tr>
               </tbody>
             </table>
           </div>
@@ -232,24 +229,16 @@ interface Props {
 }
 
 export function BacktestPanel({ state, loading, error, days }: Props) {
-  if (loading) return <p className="muted">Fetching last week’s observations and forecasts…</p>
-  if (error) return <p className="notice error">Backtest unavailable: {error}. Fixed weights are used.</p>
+  if (loading) return <p className="muted">{t('btLoading')}</p>
+  if (error) return <p className="notice error">{t('btError', { msg: error })}</p>
   if (!state) return null
-  if (state.status === 'no-station') {
-    return <p className="muted">No observing station (METAR) within 60 km, so no backtest: fixed weights are used.</p>
-  }
+  if (state.status === 'no-station') return <p className="muted">{t('btNoStation')}</p>
   const { station, result } = state
   return (
     <>
       <p className="lede">
-        Each model’s forecasts issued 1 to 7 days ahead over the last 7 days were compared with the hourly reports of{' '}
-        <strong>
-          {station.name} ({station.id})
-        </strong>
-        , {station.distanceKm.toFixed(0)} km away at {Math.round(station.elevation)} m. Models with smaller errors get more
-        weight: (median error / model error)², damped because one week is a small sample, and fading out beyond D+7.
-        The rain blend is weighted by rain/no-rain detection skill when enough rain was observed ({result.rainBlocks} rainy
-        3-hour periods this week{result.rainBlocks < 4 ? ', too few: rain weights unchanged' : ''}).
+        {t('btLede', { station: station.name, id: station.id, km: Math.round(station.distanceKm) })}
+        {result.rainBlocks < 4 && <> {t('btFewRain')}</>}
       </p>
       <div className="bt-grid">
         <WeightBars days={days} />
