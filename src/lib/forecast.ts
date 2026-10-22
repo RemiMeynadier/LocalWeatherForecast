@@ -18,7 +18,17 @@ export interface ModelValue {
   tmax: number | null
   tmin: number | null
   precip: number | null
-  weight: number
+  gust: number | null
+  snow: number | null
+  code: number | null
+  weight: number // temperature consensus weight
+  precipWeight: number // precipitation consensus weight
+  priorWeight: number // before backtesting
+}
+
+export interface SkillWeights {
+  temp: Record<string, number[]>
+  precip: Record<string, number[]>
 }
 
 export interface DayForecast {
@@ -31,6 +41,10 @@ export interface DayForecast {
   precip: number | null
   code: number | null
   wind: number | null
+  gust: number | null // weighted median of the models that provide gusts
+  gustMax: number | null // strongest model, for "possible" wording
+  snow: number | null // cm
+  stormModels: number // models showing thunderstorms
   source: 'consensus' | 'ensemble' | 'none'
   models: ModelValue[]
   ensemble: {
@@ -40,6 +54,7 @@ export interface DayForecast {
     rainProb: number // P(precip >= 1 mm)
     members: number
     sources: string[]
+    samples: { tmax: Sample[]; tmin: Sample[]; precip: Sample[] }
   } | null
   normal: DayNormal | null
   confidence: Confidence
@@ -107,6 +122,7 @@ export function buildDailyForecast(
   climate: Climatology | null,
   lat: number,
   lon: number,
+  skill: SkillWeights | null = null,
 ): DayForecast[] {
   const dates = new Set<string>()
   for (const s of [...det, ...ens]) s.time.forEach((t) => dates.add(t))
@@ -118,10 +134,21 @@ export function buildDailyForecast(
       const spec = DETERMINISTIC_MODELS.find((m) => m.id === s.model)
       const i = s.time.indexOf(date)
       if (!spec || i < 0) continue
-      const weight = modelWeight(spec, lead, lat, lon)
+      const priorWeight = modelWeight(spec, lead, lat, lon)
       const tmax = val(s.tmax, i)
-      if (weight === 0 || tmax == null) continue
-      models.push({ model: s.model, tmax, tmin: val(s.tmin, i), precip: val(s.precip, i), weight })
+      if (priorWeight === 0 || tmax == null) continue
+      models.push({
+        model: s.model,
+        tmax,
+        tmin: val(s.tmin, i),
+        precip: val(s.precip, i),
+        gust: val(s.gust, i),
+        snow: val(s.snow, i),
+        code: val(s.code, i),
+        priorWeight,
+        weight: priorWeight * (skill?.temp[s.model]?.[lead] ?? 1),
+        precipWeight: priorWeight * (skill?.precip[s.model]?.[lead] ?? 1),
+      })
     }
 
     const tx = ensembleSamples(ens, date, (e) => e.tmax)
@@ -138,11 +165,17 @@ export function buildDailyForecast(
             rainProb: weightedFraction(pr.samples, (v) => v >= RAIN_THRESHOLD)!,
             members: tx.samples.length,
             sources: tx.sources,
+            samples: { tmax: tx.samples, tmin: tn.samples, precip: pr.samples },
           }
         : null
 
-    const consensus = (key: 'tmax' | 'tmin' | 'precip') =>
-      weightedMean(models.flatMap((m) => (m[key] == null ? [] : [{ value: m[key]!, weight: m.weight }])))
+    const consensus = (key: 'tmax' | 'tmin' | 'precip' | 'snow') =>
+      weightedMean(
+        models.flatMap((m) =>
+          m[key] == null ? [] : [{ value: m[key]!, weight: key === 'tmax' || key === 'tmin' ? m.weight : m.precipWeight }],
+        ),
+      )
+    const gusts = models.flatMap((m) => (m.gust == null ? [] : [{ value: m.gust, weight: m.weight }]))
 
     // Weather icon & wind come from the most trusted model of the day.
     const top = det.find((s) => s.model === [...models].sort((a, b) => b.weight - a.weight)[0]?.model)
@@ -157,6 +190,10 @@ export function buildDailyForecast(
       precip: hasConsensus ? consensus('precip') : (ensemble?.precipMean ?? null),
       code: top ? val(top.code, ti) : null,
       wind: top ? val(top.wind, ti) : null,
+      gust: weightedQuantile(gusts, 0.5),
+      gustMax: gusts.length ? Math.max(...gusts.map((g) => g.value)) : null,
+      snow: hasConsensus ? consensus('snow') : null,
+      stormModels: models.filter((m) => m.code != null && m.code >= 95).length,
       source: hasConsensus ? 'consensus' : ensemble ? 'ensemble' : 'none',
       models,
       ensemble,

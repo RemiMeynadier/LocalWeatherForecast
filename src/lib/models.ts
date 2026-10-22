@@ -21,6 +21,8 @@ export interface DeterministicModel {
   domain?: BBox
   // High-resolution nest: inside it the model gets a boost for the first days.
   highRes?: { name: string; bbox: BBox }
+  // Machine-learning model (trained on reanalysis rather than solving physics).
+  ai?: boolean
 }
 
 export interface EnsembleModel {
@@ -29,6 +31,7 @@ export interface EnsembleModel {
   members: number
   days: number
   weight: number
+  ai?: boolean
 }
 
 const EUROPE: BBox = { latMin: 20, latMax: 72, lonMin: -32, lonMax: 42 }
@@ -37,14 +40,30 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'ecmwf_ifs025',
     label: 'ECMWF IFS',
-    provider: 'Centre européen (CEPMMT)',
+    provider: 'ECMWF',
     days: 15,
     baseWeight: 1,
   },
   {
+    id: 'ecmwf_aifs025_single',
+    label: 'ECMWF AIFS',
+    provider: 'ECMWF (AI)',
+    days: 15,
+    baseWeight: 0.95,
+    ai: true,
+  },
+  {
+    id: 'ncep_aigfs025',
+    label: 'NOAA AIGFS',
+    provider: 'NOAA (AI)',
+    days: 16,
+    baseWeight: 0.75,
+    ai: true,
+  },
+  {
     id: 'icon_seamless',
     label: 'ICON',
-    provider: 'DWD (Allemagne)',
+    provider: 'DWD (Germany)',
     days: 7,
     baseWeight: 0.8,
     highRes: { name: 'ICON-D2 2 km', bbox: { latMin: 44.5, latMax: 56.5, lonMin: 0, lonMax: 18 } },
@@ -52,7 +71,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'ukmo_seamless',
     label: 'UKMO',
-    provider: 'Met Office (Royaume-Uni)',
+    provider: 'Met Office (UK)',
     days: 7,
     baseWeight: 0.85,
     highRes: { name: 'UKV 2 km', bbox: { latMin: 49, latMax: 61, lonMin: -11, lonMax: 3 } },
@@ -60,7 +79,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'gfs_seamless',
     label: 'GFS',
-    provider: 'NOAA (États-Unis)',
+    provider: 'NOAA (USA)',
     days: 16,
     baseWeight: 0.7,
     highRes: { name: 'HRRR 3 km', bbox: { latMin: 21, latMax: 53, lonMin: -134, lonMax: -60 } },
@@ -76,7 +95,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'jma_seamless',
     label: 'JMA',
-    provider: 'JMA (Japon)',
+    provider: 'JMA (Japan)',
     days: 11,
     baseWeight: 0.6,
     highRes: { name: 'MSM 5 km', bbox: { latMin: 22.4, latMax: 47.6, lonMin: 120, lonMax: 150 } },
@@ -93,7 +112,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'knmi_seamless',
     label: 'HARMONIE (KNMI)',
-    provider: 'KNMI (Pays-Bas)',
+    provider: 'KNMI (Netherlands)',
     days: 3,
     baseWeight: 0.7,
     domain: { latMin: 49, latMax: 56, lonMin: 0, lonMax: 11 },
@@ -102,7 +121,7 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
   {
     id: 'dmi_seamless',
     label: 'HARMONIE (DMI)',
-    provider: 'DMI (Danemark)',
+    provider: 'DMI (Denmark)',
     days: 3,
     baseWeight: 0.7,
     domain: { latMin: 50, latMax: 75, lonMin: -25, lonMax: 40 },
@@ -121,7 +140,8 @@ export const DETERMINISTIC_MODELS: DeterministicModel[] = [
 
 export const ENSEMBLE_MODELS: EnsembleModel[] = [
   { id: 'ecmwf_ifs025', label: 'ECMWF ENS', members: 51, days: 15, weight: 1 },
-  { id: 'ecmwf_aifs025', label: 'ECMWF AIFS ENS (IA)', members: 51, days: 15, weight: 1 },
+  { id: 'ecmwf_aifs025', label: 'ECMWF AIFS ENS', members: 51, days: 15, weight: 1, ai: true },
+  { id: 'ncep_aigefs025', label: 'NOAA AIGEFS', members: 31, days: 16, weight: 0.7, ai: true },
   { id: 'gfs05', label: 'NOAA GEFS', members: 31, days: 35, weight: 0.7 },
   { id: 'icon_seamless', label: 'DWD ICON-EPS', members: 40, days: 7, weight: 0.7 },
 ]
@@ -138,11 +158,12 @@ export function hasLocalHighRes(m: DeterministicModel, lat: number, lon: number)
   return !!m.highRes && inBBox(lat, lon, m.highRes.bbox)
 }
 
-// Weight of a deterministic model at a given lead (0 = today), or 0 when the
-// model does not cover that day. Local high-resolution nests resolve relief,
-// coasts and convection far better, so they dominate the first two days and
-// fade back to their base weight by day 5.
-export function modelWeight(m: DeterministicModel, lead: number, lat: number, lon: number): number {
+// Prior weight of a deterministic model at a given lead (0 = today), or 0
+// when the model does not cover that day. Local high-resolution nests resolve
+// relief, coasts and convection far better, so they dominate the first two
+// days and fade back to their base weight by day 5. `skill` is the multiplier
+// learnt from backtesting (1 = no evidence either way).
+export function modelWeight(m: DeterministicModel, lead: number, lat: number, lon: number, skill = 1): number {
   if (lead >= m.days) return 0
   let w = m.baseWeight
   if (hasLocalHighRes(m, lat, lon)) {
@@ -151,5 +172,5 @@ export function modelWeight(m: DeterministicModel, lead: number, lat: number, lo
   }
   // Past day 5, ECMWF's measured skill lead grows; slightly favour it.
   if (m.id === 'ecmwf_ifs025' && lead >= 5) w *= 1.25
-  return w
+  return w * skill
 }

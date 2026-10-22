@@ -53,12 +53,12 @@ export function LocationSearch({ onSelect }: Props) {
   const locate = () => {
     setGeoError(null)
     if (!navigator.geolocation) {
-      setGeoError('Géolocalisation indisponible sur ce navigateur.')
+      setGeoError('Geolocation is not available in this browser.')
       return
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => choose({ name: 'Ma position', lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => setGeoError('Position refusée ou introuvable.'),
+      (pos) => choose({ name: 'My location', lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => setGeoError('Location denied or unavailable.'),
       { timeout: 10_000 },
     )
   }
@@ -84,8 +84,8 @@ export function LocationSearch({ onSelect }: Props) {
       <div className="search-row">
         <input
           type="search"
-          placeholder="Rechercher une ville…"
-          aria-label="Rechercher une ville"
+          placeholder="Search a place…"
+          aria-label="Search a place"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
@@ -95,8 +95,8 @@ export function LocationSearch({ onSelect }: Props) {
           aria-controls="search-results"
           aria-autocomplete="list"
         />
-        <button type="button" className="ghost" onClick={locate} title="Utiliser ma position">
-          📍 <span className="hide-sm">Ma position</span>
+        <button type="button" className="ghost" onClick={locate} title="Use my location">
+          📍 <span className="hide-sm">My location</span>
         </button>
       </div>
       {geoError && <p className="hint error">{geoError}</p>}

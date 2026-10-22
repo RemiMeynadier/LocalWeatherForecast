@@ -6,6 +6,10 @@ export interface DayNormal {
   tmin: number
   precip: number // mean daily total, mm
   rainDayProb: number // share of days with >= 1 mm
+  // Local thresholds for "unusual" days at this time of year.
+  tmaxP975: number
+  tminP025: number
+  precipP99: number
 }
 
 export interface PeriodClimate {
@@ -49,7 +53,14 @@ export class Climatology {
     return { tmax: this.data.tmax[i], tmin: this.data.tmin[i], precip: this.data.precip[i] }
   }
 
+  private normals = new Map<string, DayNormal | null>()
+
   normal(iso: string): DayNormal | null {
+    if (!this.normals.has(iso)) this.normals.set(iso, this.computeNormal(iso))
+    return this.normals.get(iso)!
+  }
+
+  private computeNormal(iso: string): DayNormal | null {
     const tmax: number[] = []
     const tmin: number[] = []
     const precip: number[] = []
@@ -69,6 +80,9 @@ export class Climatology {
       tmin: mean(tmin)!,
       precip: mean(precip)!,
       rainDayProb: precip.filter((p) => p >= 1).length / precip.length,
+      tmaxP975: quantile(tmax, 0.975)!,
+      tminP025: quantile(tmin, 0.025)!,
+      precipP99: quantile(precip, 0.99)!,
     }
   }
 

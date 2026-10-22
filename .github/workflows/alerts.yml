@@ -1,0 +1,40 @@
+name: Refresh official warnings
+
+# MeteoAlarm cannot be called from a browser (no CORS), so this job fetches
+# the active warnings every 30 minutes and publishes them as a single JSON
+# file on the `alerts-data` branch, which the app reads from
+# raw.githubusercontent.com. The branch holds one force-pushed commit.
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alerts
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/fetch-meteoalarm.mjs "$RUNNER_TEMP/meteoalarm.json"
+      - name: Publish to the alerts-data branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir "$RUNNER_TEMP/out" && cd "$RUNNER_TEMP/out"
+          cp "$RUNNER_TEMP/meteoalarm.json" .
+          git init -q -b alerts-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add meteoalarm.json
+          git commit -q -m "Update MeteoAlarm warnings"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" alerts-data

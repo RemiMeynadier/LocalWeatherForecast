@@ -3,26 +3,26 @@ import { mm, shortDate, signed, temp } from '../lib/format'
 
 type Probs = [number, number, number]
 
-const TEMP_LABELS = ['Plus frais', 'Proche normale', 'Plus chaud'] as const
-const RAIN_LABELS = ['Plus sec', 'Proche normale', 'Plus humide'] as const
+const TEMP_LABELS = ['Colder', 'Near normal', 'Warmer'] as const
+const RAIN_LABELS = ['Drier', 'Near normal', 'Wetter'] as const
 
-// Plain-language verdict from tercile probabilities (33 % each = no signal).
+// Plain-language verdict from tercile probabilities (33% each = no signal).
 function verdict(p: Probs, labels: readonly [string, string, string]): string {
   const i = p.indexOf(Math.max(...p))
   const v = p[i]
-  if (v < 0.4) return 'Pas de signal clair'
-  const name = i === 1 ? 'Proche de la normale' : `${labels[i]} que la normale`
-  if (v >= 0.6) return `${name} (probable)`
-  return `${name} (légèrement favorisé)`
+  if (v < 0.4) return 'No clear signal'
+  const name = i === 1 ? 'Near normal' : `${labels[i]} than normal`
+  if (v >= 0.6) return `${name} (likely)`
+  return `${name} (slightly favoured)`
 }
 
 function TercileBar({ p, labels, kind }: { p: Probs; labels: readonly [string, string, string]; kind: 'temp' | 'rain' }) {
   return (
-    <div className="tercile" role="img" aria-label={labels.map((l, i) => `${l} ${Math.round(p[i] * 100)} %`).join(', ')}>
+    <div className="tercile" role="img" aria-label={labels.map((l, i) => `${l} ${Math.round(p[i] * 100)}%`).join(', ')}>
       <div className="tercile-bar">
         {p.map((v, i) =>
           v >= 0.005 ? (
-            <span key={i} className={`seg ${kind}-${i}`} style={{ flexGrow: v }} title={`${labels[i]} : ${Math.round(v * 100)} %`} />
+            <span key={i} className={`seg ${kind}-${i}`} style={{ flexGrow: v }} title={`${labels[i]}: ${Math.round(v * 100)}%`} />
           ) : null,
         )}
       </div>
@@ -30,7 +30,7 @@ function TercileBar({ p, labels, kind }: { p: Probs; labels: readonly [string, s
         {p.map((v, i) => (
           <span key={i}>
             <i className={`key ${kind}-${i}`} />
-            {labels[i]} <strong>{Math.round(v * 100)} %</strong>
+            {labels[i]} <strong>{Math.round(v * 100)}%</strong>
           </span>
         ))}
       </div>
@@ -39,23 +39,23 @@ function TercileBar({ p, labels, kind }: { p: Probs; labels: readonly [string, s
 }
 
 export function WeeklyOutlook({ weeks, hasClimate }: { weeks: WeekOutlook[]; hasClimate: boolean }) {
-  if (!weeks.length) return <p className="muted">Pas de données d’ensemble disponibles.</p>
+  if (!weeks.length) return <p className="muted">No ensemble data available.</p>
   return (
     <div className="weeks">
       {weeks.map((w, k) => (
         <article key={w.start} className="week">
           <header>
-            <h3>Semaine {k + 1}</h3>
+            <h3>Week {k + 1}</h3>
             <span className="muted">
               {shortDate(w.start)} → {shortDate(w.end)}
-              {w.days < 7 ? ` (${w.days} j)` : ''}
+              {w.days < 7 ? ` (${w.days} d)` : ''}
             </span>
           </header>
           <div className="week-body">
             <section>
               <div className="week-figure">
                 <span className="big">{temp(w.tempMean, 1)}</span>
-                <span className="muted">temp. moyenne{w.tempAnomaly != null && <> · <strong>{signed(w.tempAnomaly)}</strong> vs normale</>}</span>
+                <span className="muted">mean temp.{w.tempAnomaly != null && <> · <strong>{signed(w.tempAnomaly)}</strong> vs normal</>}</span>
               </div>
               {w.tempProbs ? (
                 <>
@@ -63,13 +63,13 @@ export function WeeklyOutlook({ weeks, hasClimate }: { weeks: WeekOutlook[]; has
                   <TercileBar p={w.tempProbs} labels={TEMP_LABELS} kind="temp" />
                 </>
               ) : (
-                !hasClimate && <p className="muted small">Normales en cours de chargement…</p>
+                !hasClimate && <p className="muted small">Loading normals…</p>
               )}
             </section>
             <section>
               <div className="week-figure">
                 <span className="big">{mm(w.precipTotal)}</span>
-                <span className="muted">cumul médian</span>
+                <span className="muted">median total</span>
               </div>
               {w.precipProbs && (
                 <>
@@ -79,7 +79,7 @@ export function WeeklyOutlook({ weeks, hasClimate }: { weeks: WeekOutlook[]; has
               )}
             </section>
           </div>
-          <footer className="muted small">Source : {w.sources.join(', ')}</footer>
+          <footer className="muted small">Source: {w.sources.join(', ')}</footer>
         </article>
       ))}
     </div>

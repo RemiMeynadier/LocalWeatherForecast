@@ -14,7 +14,7 @@ function dates(n: number, start = '2026-10-22'): string[] {
 
 function det(model: string, n: number, tmax: number): DeterministicSeries {
   const filled = (v: number) => Array.from({ length: 16 }, (_, i) => (i < n ? v : null))
-  return { model, time: dates(16), tmax: filled(tmax), tmin: filled(tmax - 10), precip: filled(1), code: filled(3), wind: filled(10) }
+  return { model, time: dates(16), tmax: filled(tmax), tmin: filled(tmax - 10), precip: filled(1), code: filled(3), wind: filled(10), gust: filled(30), snow: filled(0) }
 }
 
 function ens(model: string, days: number, members: number[]): EnsembleSeries {

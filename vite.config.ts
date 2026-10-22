@@ -5,4 +5,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   base: '/LocalWeatherForecast/',
   plugins: [react()],
+  // The country outlines for the synoptic map (~750 kB, lazy-loaded) exceed
+  // the default warning size.
+  build: { chunkSizeWarningLimit: 800 },
 })

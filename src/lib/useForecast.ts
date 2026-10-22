@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import {
   type DeterministicSeries,
   type EnsembleSeries,
@@ -6,10 +6,19 @@ import {
   fetchClimate,
   fetchDeterministic,
   fetchEnsemble,
+  fetchPastRuns,
+  fetchSynopticGrid,
+  GRID_STEP,
 } from '../api/openMeteo'
+import { type Region, type Station, fetchObservations, findNearestStation, reverseGeocode } from '../api/observations'
+import { fetchOfficialWarnings } from '../api/warnings'
+import { type BacktestResult, computeBacktest } from './backtest'
 import { Climatology } from './climate'
+import { crossCheck, detectExtremes } from './extremes'
 import { buildDailyForecast, buildWeeklyOutlook } from './forecast'
 import { ENSEMBLE_MODELS, selectDeterministicModels } from './models'
+import { synopticBriefing } from './synoptic'
+import { useAsync } from './useAsync'
 
 interface Raw {
   det: DeterministicSeries[]
@@ -17,74 +26,82 @@ interface Raw {
   failed: string[]
 }
 
-// Results are tagged with the place they belong to, so "loading" is simply
-// "no result for the current place yet" and stale responses are ignored.
-interface Tagged<T> {
-  key: string
-  value: T
+async function loadForecasts(place: Place): Promise<Raw> {
+  const models = selectDeterministicModels(place.lat, place.lon)
+  const [det, ...ens] = await Promise.allSettled([
+    fetchDeterministic(place, models),
+    ...ENSEMBLE_MODELS.map((m) => fetchEnsemble(place, m)),
+  ])
+  const failed = ENSEMBLE_MODELS.filter((_, i) => ens[i].status === 'rejected').map((m) => m.label)
+  const okEns = ens.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+  if (det.status === 'rejected' && !okEns.length) throw det.reason
+  return {
+    det: det.status === 'fulfilled' ? det.value : [],
+    ens: okEns,
+    failed: det.status === 'rejected' ? ['Deterministic models', ...failed] : failed,
+  }
 }
 
-const placeKey = (p: Place) => `${p.lat},${p.lon}`
+export type BacktestState =
+  | { status: 'ok'; station: Station; result: BacktestResult }
+  | { status: 'no-station' }
+
+async function loadBacktest(place: Place, region: Region): Promise<BacktestState> {
+  const station = await findNearestStation(place.lat, place.lon, region)
+  if (!station) return { status: 'no-station' }
+  const models = selectDeterministicModels(place.lat, place.lon).map((m) => m.id)
+  const [obs, runs] = await Promise.all([
+    fetchObservations(station),
+    fetchPastRuns(station.lat, station.lon, station.elevation, models),
+  ])
+  return { status: 'ok', station, result: computeBacktest(runs, obs) }
+}
 
 export function useForecast(place: Place) {
-  const key = placeKey(place)
-  const [raw, setRaw] = useState<Tagged<{ data: Raw | null; error: string | null }> | null>(null)
-  const [climate, setClimate] = useState<Tagged<Climatology | null> | null>(null)
+  const key = `${place.lat},${place.lon}`
 
-  useEffect(() => {
-    let cancelled = false
-    const models = selectDeterministicModels(place.lat, place.lon)
-    const ensembleCalls = ENSEMBLE_MODELS.map((m) => fetchEnsemble(place, m))
-    Promise.allSettled([fetchDeterministic(place, models), ...ensembleCalls]).then(([det, ...ens]) => {
-      if (cancelled) return
-      const failed = ENSEMBLE_MODELS.filter((_, i) => ens[i].status === 'rejected').map((m) => m.label)
-      const okEns = ens.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
-      if (det.status === 'rejected' && !okEns.length) {
-        const error = det.reason?.message ?? 'Impossible de récupérer les prévisions.'
-        setRaw({ key: placeKey(place), value: { data: null, error } })
-        return
-      }
-      const data = {
-        det: det.status === 'fulfilled' ? det.value : [],
-        ens: okEns,
-        failed: det.status === 'rejected' ? ['Modèles déterministes', ...failed] : failed,
-      }
-      setRaw({ key: placeKey(place), value: { data, error: null } })
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [place])
+  const raw = useAsync(key, () => loadForecasts(place))
+  const climate = useAsync(key, () => fetchClimate(place).then((c) => new Climatology(c)))
+  const grid = useAsync(key, () => fetchSynopticGrid(place))
+  const region = useAsync(key, () => reverseGeocode(place.lat, place.lon))
+  const regionKey = region.value ? key : null
+  const backtest = useAsync(regionKey, () => loadBacktest(place, region.value!))
+  const warnings = useAsync(regionKey, () => fetchOfficialWarnings(place.lat, place.lon, region.value!))
 
-  // Normals are slow the first time; the forecast shows without them meanwhile.
-  useEffect(() => {
-    let cancelled = false
-    fetchClimate(place)
-      .then((c) => new Climatology(c))
-      .catch(() => null)
-      .then((value) => !cancelled && setClimate({ key: placeKey(place), value }))
-    return () => {
-      cancelled = true
-    }
-  }, [place])
-
-  const current = raw?.key === key ? raw.value : null
-  const clim = climate?.key === key ? climate.value : null
-  const data = current?.data ?? null
+  const bt = backtest.value?.status === 'ok' ? backtest.value.result : null
+  const skill = useMemo(() => (bt ? { temp: bt.tempSkill, precip: bt.precipSkill } : null), [bt])
 
   const days = useMemo(
-    () => (data ? buildDailyForecast(data.det, data.ens, clim, place.lat, place.lon) : []),
-    [data, clim, place],
+    () => (raw.value ? buildDailyForecast(raw.value.det, raw.value.ens, climate.value, place.lat, place.lon, skill) : []),
+    [raw.value, climate.value, place, skill],
   )
-  const weeks = useMemo(() => (data ? buildWeeklyOutlook(data.ens, clim) : []), [data, clim])
+  const weeks = useMemo(() => (raw.value ? buildWeeklyOutlook(raw.value.ens, climate.value) : []), [raw.value, climate.value])
+  const briefing = useMemo(
+    () => (grid.value ? synopticBriefing(grid.value, place.lat, place.lon, GRID_STEP) : null),
+    [grid.value, place.lat, place.lon],
+  )
+  const alerts = useMemo(
+    () => (days.length ? crossCheck(detectExtremes(days), warnings.value?.warnings ?? []) : null),
+    [days, warnings.value],
+  )
 
   return {
     days,
     weeks,
-    loading: current == null,
-    climateLoading: climate?.key !== key,
-    error: current?.error ?? null,
-    failed: data?.failed ?? [],
-    hasClimate: !!clim,
+    loading: raw.loading,
+    error: raw.error,
+    failed: raw.value?.failed ?? [],
+    climateLoading: climate.loading,
+    hasClimate: !!climate.value,
+    grid: grid.value,
+    briefing,
+    gridError: grid.error,
+    backtest: backtest.value,
+    backtestLoading: region.loading || backtest.loading,
+    backtestError: backtest.error ?? region.error,
+    warnings: warnings.value,
+    warningsLoading: region.loading || warnings.loading,
+    warningsError: warnings.error ?? region.error,
+    alerts,
   }
 }

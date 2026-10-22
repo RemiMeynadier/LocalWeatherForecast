@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { Place } from './api/openMeteo'
+import { GRID_STEP, type Place } from './api/openMeteo'
+import { BacktestPanel } from './components/BacktestPanel'
+import { AlertsView, SynopticBriefingView } from './components/Briefing'
 import { DailyCards } from './components/DailyCards'
 import { PrecipitationChart, TemperatureChart } from './components/ForecastCharts'
 import { LocationSearch } from './components/LocationSearch'
@@ -16,7 +18,7 @@ function initialPlace(): Place {
   const lat = Number(q.get('lat'))
   const lon = Number(q.get('lon'))
   if (q.has('lat') && q.has('lon') && Number.isFinite(lat) && Number.isFinite(lon)) {
-    return { name: q.get('name') ?? 'Lieu', lat, lon }
+    return { name: q.get('name') ?? 'Location', lat, lon }
   }
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -30,7 +32,8 @@ function initialPlace(): Place {
 export default function App() {
   const [place, setPlace] = useState<Place>(initialPlace)
   const [hover, setHover] = useState<number | null>(null)
-  const { days, weeks, loading, climateLoading, error, failed, hasClimate } = useForecast(place)
+  const f = useForecast(place)
+  const { days, weeks } = f
 
   useEffect(() => {
     const q = new URLSearchParams({ lat: place.lat.toFixed(4), lon: place.lon.toFixed(4), name: place.name })
@@ -45,7 +48,8 @@ export default function App() {
 
   const today = days[0]
   const w = weather(today?.code ?? null)
-  const horizon = days.length
+  const alertCount = f.alerts?.alerts.length ?? 0
+  const severe = f.alerts?.alerts.some((a) => a.level === 'warning')
 
   return (
     <div className="page">
@@ -83,24 +87,46 @@ export default function App() {
           )}
         </section>
 
-        {error && <p className="notice error">Erreur : {error}</p>}
-        {loading && <p className="notice">Chargement des modèles…</p>}
+        {f.error && <p className="notice error">Error: {f.error}</p>}
+        {f.loading && <p className="notice">Loading models…</p>}
+
+        <section>
+          <h2>Synoptic situation</h2>
+          <SynopticBriefingView
+            briefing={f.briefing}
+            grid={f.grid}
+            gridError={f.gridError}
+            lat={place.lat}
+            lon={place.lon}
+            step={GRID_STEP}
+          />
+        </section>
 
         {days.length > 0 && (
           <>
+            <section className={alertCount ? (severe ? 'has-warning' : 'has-watch') : ''}>
+              <h2>Extremes &amp; warnings{alertCount > 0 && ` (${alertCount})`}</h2>
+              <AlertsView
+                alerts={f.alerts}
+                warnings={f.warnings}
+                warningsLoading={f.warningsLoading}
+                warningsError={f.warningsError}
+              />
+            </section>
+
             <section>
-              <h2>Les 10 prochains jours</h2>
+              <h2>Next 10 days</h2>
               <DailyCards days={days.slice(0, 10)} />
             </section>
 
             <section>
               <div className="section-head">
-                <h2>Températures sur {horizon} jours</h2>
+                <h2>Temperatures over {days.length} days</h2>
                 <ul className="legend">
-                  <li><i className="key key-max" />Max (meilleure estimation)</li>
+                  <li><i className="key key-max" />Max (best estimate)</li>
                   <li><i className="key key-min" />Min</li>
-                  <li><i className="key key-band" />Plage probable (80 % / 50 % des scénarios)</li>
-                  <li><i className="key key-normal" />Normales 1991-2020{climateLoading && ' (chargement…)'}</li>
+                  <li><i className="key key-band" />Likely range (80% / 50% of scenarios)</li>
+                  <li><i className="key key-normal" />1991–2020 normals{f.climateLoading && ' (loading…)'}</li>
                 </ul>
               </div>
               <TemperatureChart days={days} hover={hover} onHover={setHover} />
@@ -108,45 +134,56 @@ export default function App() {
 
             <section>
               <div className="section-head">
-                <h2>Précipitations</h2>
+                <h2>Precipitation</h2>
                 <ul className="legend">
-                  <li><i className="key key-rain" />Cumul journalier attendu</li>
-                  <li><i className="key key-prob" />Probabilité ≥ 1 mm (plus foncé = plus probable)</li>
+                  <li><i className="key key-rain" />Expected daily total</li>
+                  <li><i className="key key-prob" />Chance of ≥ 1 mm (darker = more likely)</li>
                 </ul>
               </div>
               <PrecipitationChart days={days} hover={hover} onHover={setHover} />
             </section>
 
             <section>
-              <h2>Tendances semaine par semaine</h2>
+              <h2>Week-by-week outlook</h2>
               <p className="muted lede">
-                Au-delà de 10 jours, on ne peut plus prévoir le temps d’un jour précis, mais les ensembles indiquent
-                si une semaine sera plutôt plus chaude, plus froide, plus sèche ou plus humide que la normale. Sans
-                signal particulier, chaque catégorie vaut 33 %.
+                Beyond 10 days, the weather of a given day can no longer be forecast, but ensembles still show whether a
+                week will be warmer, colder, drier or wetter than normal. With no signal, each category is at 33%.
               </p>
-              <WeeklyOutlook weeks={weeks} hasClimate={hasClimate} />
+              <WeeklyOutlook weeks={weeks} hasClimate={f.hasClimate} />
             </section>
 
             <section>
-              <h2>Ce que disent les modèles</h2>
-              <ModelsPanel days={days} lat={place.lat} lon={place.lon} failed={failed} />
+              <h2>Backtest &amp; model weighting</h2>
+              <BacktestPanel state={f.backtest} loading={f.backtestLoading} error={f.backtestError} days={days} />
+            </section>
+
+            <section>
+              <h2>What the models say</h2>
+              <ModelsPanel
+                days={days}
+                lat={place.lat}
+                lon={place.lon}
+                failed={f.failed}
+                backtested={f.backtest?.status === 'ok'}
+              />
             </section>
 
             <section>
               <details className="data-table">
-                <summary>Voir toutes les données en tableau</summary>
+                <summary>Show all data as a table</summary>
                 <div className="table-wrap">
                   <table>
                     <thead>
                       <tr>
-                        <th scope="col">Jour</th>
+                        <th scope="col">Day</th>
                         <th scope="col">Max</th>
                         <th scope="col">Min</th>
-                        <th scope="col">Plage max (80 %)</th>
-                        <th scope="col">Normales</th>
-                        <th scope="col">Pluie</th>
-                        <th scope="col">Proba. pluie</th>
-                        <th scope="col">Confiance</th>
+                        <th scope="col">Max range (80%)</th>
+                        <th scope="col">Normals</th>
+                        <th scope="col">Rain</th>
+                        <th scope="col">Chance of rain</th>
+                        <th scope="col">Gusts</th>
+                        <th scope="col">Confidence</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -159,6 +196,7 @@ export default function App() {
                           <td>{d.normal ? `${temp(d.normal.tmax)} / ${temp(d.normal.tmin)}` : '—'}</td>
                           <td>{mm(d.precip)}</td>
                           <td>{pct(d.ensemble?.rainProb)}</td>
+                          <td>{d.gust != null ? `${Math.round(d.gust)} km/h` : '—'}</td>
                           <td>{CONFIDENCE[d.confidence].label}</td>
                         </tr>
                       ))}
@@ -169,27 +207,31 @@ export default function App() {
             </section>
 
             <section className="method">
-              <h2>Méthode</h2>
+              <h2>Method</h2>
               <ul>
                 <li>
-                  <strong>J0 à J+3 :</strong> les modèles haute résolution qui couvrent ton lieu (AROME, ICON-D2,
-                  UKV, HRRR, HARMONIE…) reçoivent le plus de poids, car ils voient le relief, les côtes et les orages.
+                  <strong>D0 to D+3:</strong> high-resolution models covering your location (AROME, ICON-D2, UKV, HRRR,
+                  HARMONIE…) get the most weight, as they resolve relief, coastlines and thunderstorms.
                 </li>
                 <li>
-                  <strong>J+4 à J+15 :</strong> consensus pondéré des modèles globaux, avec ECMWF IFS légèrement
-                  favorisé car c’est le plus fiable en moyenne à ces échéances.
+                  <strong>D+4 to D+15:</strong> weighted blend of global models, physics-based (ECMWF IFS, ICON, UKMO,
+                  GFS, GEM, JMA) and AI (ECMWF AIFS, NOAA AIGFS).
                 </li>
                 <li>
-                  <strong>Au-delà :</strong> uniquement les ensembles (des dizaines de scénarios). On affiche leur
-                  médiane, leur dispersion et des probabilités par rapport aux normales 1991-2020 (réanalyse ERA5).
+                  <strong>Backtest:</strong> each model’s forecasts from the last 7 days are scored against the nearest
+                  airport’s hourly observations, and the weights are adjusted accordingly (see above).
                 </li>
                 <li>
-                  La confiance dépend de l’échéance et baisse d’un niveau quand les scénarios divergent fortement
-                  (plus de 4° d’écart sur le maximum).
+                  <strong>Beyond D+15:</strong> ensembles only (ECMWF ENS, AIFS ENS, GEFS, AIGEFS, ICON-EPS). The page
+                  shows their median, spread and probabilities against the 1991–2020 normals (ERA5 reanalysis).
                 </li>
                 <li>
-                  Les poids sont pour l’instant des règles fixes. Prochaine étape : les ajuster selon la fiabilité
-                  mesurée de chaque modèle à ton endroit.
+                  <strong>Extremes:</strong> forecasts are compared with local climate percentiles and absolute
+                  thresholds, then cross-checked with official warnings (MeteoAlarm in Europe, NWS in the US).
+                </li>
+                <li>
+                  AI models tend to smooth extremes. Gusts and thunderstorm flags therefore come from physics-based
+                  models only (AI models don’t provide them).
                 </li>
               </ul>
             </section>
@@ -198,9 +240,12 @@ export default function App() {
       </main>
 
       <footer className="foot muted small">
-        Données : <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo.com</a> (CC BY 4.0),
-        modèles ECMWF, DWD, NOAA, Météo-France, Met Office, ECCC, JMA, KNMI, DMI, MET Norway. Normales : ERA5
-        (Copernicus).
+        Data: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo.com</a> (CC BY 4.0) from
+        ECMWF, DWD, NOAA, Météo-France, Met Office, ECCC, JMA, KNMI, DMI, MET Norway · Normals: ERA5 (Copernicus) ·
+        Observations: METAR via{' '}
+        <a href="https://mesonet.agron.iastate.edu/" target="_blank" rel="noreferrer">Iowa Environmental Mesonet</a> ·
+        Warnings: <a href="https://meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>,{' '}
+        <a href="https://www.weather.gov/" target="_blank" rel="noreferrer">NWS</a> · Reverse geocoding: BigDataCloud.
       </footer>
     </div>
   )
