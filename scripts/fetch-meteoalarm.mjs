@@ -49,7 +49,7 @@ const now = Date.now()
 const out = { generated: new Date(now).toISOString(), countries: {} }
 for (const [code, slug] of Object.entries(COUNTRIES)) {
   try {
-    const res = await fetch(`https://feeds.meteoalarm.org/api/v1/warnings/feeds-${slug}`)
+    const res = await fetch(`https://feeds.meteoalarm.org/api/v1/warnings/feeds-${slug}`, { signal: AbortSignal.timeout(30_000) })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const body = await res.json()
     const seen = new Set()
