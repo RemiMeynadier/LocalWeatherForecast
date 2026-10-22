@@ -448,6 +448,9 @@ button.ghost:hover {
 .chart {
   position: relative;
   width: 100%;
+  min-width: 0;
+  /* Let the chart shrink to its container; the SVG is re-measured. */
+  overflow-x: clip;
 }
 
 .chart svg {
@@ -813,8 +816,17 @@ details[open] summary {
 
 @media (max-width: 860px) {
   .briefing {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.briefing > *,
+.synoptic-map {
+  min-width: 0;
+}
+
+.synoptic-map {
+  overflow-x: clip;
 }
 
 .synoptic-map svg {
@@ -1221,9 +1233,118 @@ main > section.has-watch {
   text-align: center;
 }
 
+/* Phones */
+
 @media (max-width: 560px) {
+  /* Header: brand + language on one line, search below at full width. */
+  .top {
+    gap: 10px;
+    padding: 12px 0;
+  }
+
+  .brand {
+    flex: 1;
+  }
+
+  button.lang {
+    order: 2;
+  }
+
+  .search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .hero {
+    gap: 8px;
+  }
+
+  .hero-icon {
+    font-size: 2.4rem;
+  }
+
+  h2 {
+    font-size: 1.05rem;
+  }
+
+  /* Daily cards: one swipeable row instead of a tall grid. */
+  .cards {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 8px;
+    margin: 0 -14px;
+    padding: 0 14px 6px;
+    scrollbar-width: none;
+  }
+
+  .cards::-webkit-scrollbar {
+    display: none;
+  }
+
+  .card {
+    flex: 0 0 44%;
+    scroll-snap-align: start;
+  }
+
+  /* Weight bars: name and value on one line, bar underneath. */
   .wbar-row {
-    grid-template-columns: 6.5rem 1fr 5.5rem;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'label value'
+      'track track';
+    row-gap: 3px;
+  }
+
+  .wbar-label {
+    grid-area: label;
+  }
+
+  .wbar-value {
+    grid-area: value;
+  }
+
+  .wbar-track {
+    grid-area: track;
+  }
+
+  /* Tables: tighter, so more columns fit before scrolling. */
+  .table-wrap th,
+  .table-wrap td {
+    padding: 6px 6px;
+  }
+
+  .table-wrap table {
+    font-size: 0.8rem;
+  }
+
+  .table-wrap .heatmap th,
+  .table-wrap .heatmap td {
+    padding: 5px 4px;
+  }
+
+  .models th[scope='row'] .muted {
+    display: none;
+  }
+
+  .alert {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .alert-icon {
+    font-size: 1.3rem;
+  }
+
+  .crosscheck ul {
+    padding-left: 14px;
+  }
+
+  .tooltip {
+    min-width: 0;
+    max-width: 85%;
+    font-size: 0.8rem;
   }
 }
 

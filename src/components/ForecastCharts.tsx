@@ -155,14 +155,18 @@ interface ChartProps {
 // shows on the chart under the pointer.
 function usePointer(s: Scale, n: number, onHover: (i: number | null) => void) {
   const [inside, setInside] = useState(false)
+  const show = (e: PointerEvent<SVGRectElement>) => {
+    const box = e.currentTarget.getBoundingClientRect()
+    const i = Math.floor((e.clientX - box.left) / s.step)
+    setInside(true)
+    onHover(i >= 0 && i < n ? i : null)
+  }
   const handlers = {
-    onPointerMove: (e: PointerEvent<SVGRectElement>) => {
-      const box = e.currentTarget.getBoundingClientRect()
-      const i = Math.floor((e.clientX - box.left) / s.step)
-      setInside(true)
-      onHover(i >= 0 && i < n ? i : null)
-    },
-    onPointerLeave: () => {
+    onPointerMove: show,
+    // On touch screens a tap shows the day, and it stays after the finger lifts.
+    onPointerDown: show,
+    onPointerLeave: (e: PointerEvent<SVGRectElement>) => {
+      if (e.pointerType === 'touch') return
       setInside(false)
       onHover(null)
     },

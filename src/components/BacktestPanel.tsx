@@ -192,17 +192,21 @@ function ObsChart({ result }: { result: BacktestResult }) {
           </g>
           <g className="axis">
             <line x1={M.left} x2={width - M.right} y1={height - M.bottom} y2={height - M.bottom} className="baseline" />
-            {pts.map((p, i) =>
-              p.time.endsWith('T12:00') ? (
-                <text key={p.time} x={x(i)} y={height - 6} textAnchor="middle">{dayShort(p.time)}</text>
-              ) : null,
-            )}
+            {pts.map((p, i) => {
+              // One label per day at noon, or every other day when they would collide.
+              if (!p.time.endsWith('T12:00')) return null
+              const perDay = (24 / Math.max(1, pts.length - 1)) * (width - M.left - M.right)
+              const day = Number(p.time.slice(8, 10))
+              if (perDay < 56 && day % 2) return null
+              if (x(i) < M.left + 20 || x(i) > width - M.right - 20) return null
+              return <text key={p.time} x={x(i)} y={height - 6} textAnchor="middle">{dayShort(p.time)}</text>
+            })}
           </g>
           <path className="line line-worst" d={line((i) => pts[i].byModel[worst])} />
           <path className="line line-best" d={line((i) => pts[i].byModel[best])} />
           <path className="line line-obs" d={line((i) => pts[i].obs)} />
           {hover != null && <line className="crosshair" x1={x(hover)} x2={x(hover)} y1={M.top} y2={height - M.bottom} />}
-          <rect className="hit" x={M.left} y={M.top} width={width - M.left - M.right} height={height - M.top - M.bottom} onPointerMove={onMove} onPointerLeave={() => setHover(null)} />
+          <rect className="hit" x={M.left} y={M.top} width={width - M.left - M.right} height={height - M.top - M.bottom} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={(e) => e.pointerType !== 'touch' && setHover(null)} />
         </svg>
         {hp && hover != null && (
           <div className="tooltip" style={x(hover) > width / 2 ? { right: width - x(hover) + 12 } : { left: x(hover) + 12 }}>
