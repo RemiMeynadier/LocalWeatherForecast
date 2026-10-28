@@ -104,3 +104,7 @@ export const dateTime = (iso: string | null) =>
 
 export const utcTime = (iso: string) =>
   fmt({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(`${iso}Z`))
+
+// Clock time ("14:35") of a unix time, in the place's time zone when known.
+export const clock = (unix: number, timeZone?: string) =>
+  fmt({ hour: '2-digit', minute: '2-digit', timeZone }).format(new Date(unix * 1000))

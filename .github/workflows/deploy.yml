@@ -27,6 +27,9 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+        env:
+          # Optional: enables the webcam panel (free key from https://api.windy.com/keys).
+          VITE_WINDY_API_KEY: ${{ secrets.WINDY_API_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

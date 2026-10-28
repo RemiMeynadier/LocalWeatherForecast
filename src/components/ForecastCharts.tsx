@@ -1,21 +1,10 @@
-import { type PointerEvent, useEffect, useRef, useState } from 'react'
+import { type PointerEvent, useState } from 'react'
+import { niceTicks, useWidth } from '../lib/chartUtils'
 import type { DayForecast } from '../lib/forecast'
 import { t } from '../i18n'
 import { confidence, dayLabel, mm, pct, shortDate, temp } from '../lib/format'
 
 const M = { top: 22, right: 64, bottom: 26, left: 36 }
-
-function useWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null)
-  const [width, setWidth] = useState(640)
-  useEffect(() => {
-    if (!ref.current) return
-    const ro = new ResizeObserver(([e]) => setWidth(Math.max(280, e.contentRect.width)))
-    ro.observe(ref.current)
-    return () => ro.disconnect()
-  }, [])
-  return { ref, width }
-}
 
 interface Scale {
   x: (i: number) => number
@@ -27,15 +16,6 @@ function xScale(width: number, n: number): Scale {
   const innerW = width - M.left - M.right
   const step = innerW / Math.max(1, n)
   return { x: (i) => M.left + (i + 0.5) * step, step, innerW }
-}
-
-function niceTicks(min: number, max: number, target = 5): number[] {
-  const raw = (max - min) / target
-  const mag = 10 ** Math.floor(Math.log10(raw))
-  const step = [1, 2, 2.5, 5, 10].map((s) => s * mag).find((s) => s >= raw) ?? raw
-  const ticks: number[] = []
-  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) ticks.push(Number(v.toFixed(6)))
-  return ticks
 }
 
 // Polyline through defined points; breaks the path on gaps.

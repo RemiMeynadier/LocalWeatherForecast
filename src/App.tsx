@@ -4,6 +4,7 @@ import { BacktestPanel } from './components/BacktestPanel'
 import { AlertsView, SynopticBriefingView } from './components/Briefing'
 import { DailyCards } from './components/DailyCards'
 import { PrecipitationChart, TemperatureChart } from './components/ForecastCharts'
+import { RainNextHour } from './components/RainNextHour'
 import { LocationSearch } from './components/LocationSearch'
 import { ModelsPanel } from './components/ModelsPanel'
 import { WeeklyOutlook } from './components/WeeklyOutlook'
@@ -104,6 +105,11 @@ export default function App() {
 
         {f.error && <p className="notice error">{t('error', { msg: f.error })}</p>}
         {f.loading && <p className="notice">{t('loading')}</p>}
+
+        <section>
+          <h2>{t('rain1h')}</h2>
+          <RainNextHour place={place} />
+        </section>
 
         <section>
           <h2>{t('synoptic')}</h2>

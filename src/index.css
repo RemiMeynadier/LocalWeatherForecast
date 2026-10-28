@@ -1376,3 +1376,212 @@ button.lang span.on {
 .method details[open] summary {
   margin-bottom: 10px;
 }
+
+/* Rain in the next hour */
+
+.rain1h {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.rain1h-main,
+.rain1h-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rain1h-source {
+  grid-column: 1 / -1;
+  margin: 0;
+  max-width: 90ch;
+}
+
+.nc-headline {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 1.2rem;
+  font-weight: 650;
+}
+
+.nc-headline + .small {
+  margin: -6px 0 0;
+}
+
+.rain1h .chart .legend {
+  margin-bottom: 6px;
+}
+
+.key-nowcast {
+  background: var(--rain);
+  opacity: 0.55;
+}
+
+.key-model15 {
+  height: 3px;
+  background: var(--max);
+}
+
+.bar-nowcast {
+  fill: var(--rain);
+}
+
+.line-model15 {
+  stroke: var(--max);
+}
+
+.now-line {
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.radar-map {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radar-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.radar-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* OpenStreetMap in greys, so the radar colours stand out. */
+.radar-base {
+  filter: grayscale(1) contrast(0.85) brightness(1.04);
+  opacity: 0.85;
+}
+
+@media (prefers-color-scheme: dark) {
+  .radar-base {
+    filter: grayscale(1) invert(1) brightness(0.75) contrast(0.9);
+  }
+}
+
+.radar-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.radar-controls button {
+  flex: none;
+  min-width: 92px;
+}
+
+.radar-controls label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.radar-controls input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.radar-map figcaption,
+.webcam p {
+  margin: 0;
+}
+
+.webcam {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.webcam-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.webcam-head select {
+  min-width: 0;
+  max-width: 70%;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.webcam-view {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+}
+
+.webcam-view a,
+.webcam-view img,
+.webcam-view iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: cover;
+}
+
+.webcam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 860px) {
+  /* One column: headline and chart, radar map, then the webcam. */
+  .rain1h {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .rain1h-main,
+  .rain1h-side {
+    display: contents;
+  }
+
+  .rain1h .webcam {
+    order: 1;
+  }
+
+  .rain1h-source {
+    order: 2;
+  }
+}
+
+@media (max-width: 560px) {
+  .nc-headline {
+    font-size: 1.05rem;
+  }
+}

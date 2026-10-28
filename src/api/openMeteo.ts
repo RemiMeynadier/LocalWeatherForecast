@@ -215,3 +215,25 @@ export async function fetchPastRuns(lat: number, lon: number, elevation: number,
     precip: [[], ...leads.map((l) => h[`precipitation_previous_day${l}_${m}`] ?? [])],
   }))
 }
+
+export interface MinutelySeries {
+  time: number[] // unix seconds, end of each 15-minute interval
+  precip: Num[] // mm in the 15 minutes before `time`
+  timezone: string
+}
+
+// 15-minute precipitation for the last and next 2 hours. Native where a
+// rapid-update model exists (AROME, ICON-D2, HRRR…), interpolated elsewhere.
+export async function fetchMinutely(place: Place): Promise<MinutelySeries> {
+  const q = new URLSearchParams({
+    latitude: String(place.lat),
+    longitude: String(place.lon),
+    minutely_15: 'precipitation',
+    past_minutely_15: '8',
+    forecast_minutely_15: '9',
+    timeformat: 'unixtime',
+    timezone: 'auto',
+  })
+  const body = await getJson(`${FORECAST}?${q}`)
+  return { time: body.minutely_15.time, precip: body.minutely_15.precipitation, timezone: body.timezone }
+}
